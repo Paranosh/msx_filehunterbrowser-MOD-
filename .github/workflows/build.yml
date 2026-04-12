@@ -45,7 +45,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fh-com
-          path: |
-            obj/fh.com
-            dsk/fh.com
+          path: obj/fh.com
           retention-days: 30
