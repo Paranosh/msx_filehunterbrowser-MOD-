@@ -634,19 +634,21 @@ void menu_loop()
 				case KEY_ESC:
 					if (dirMode) {
 						if (currentDirPath[0]) {
-							char *slash = strrchr(currentDirPath, '/');
-							if (slash)
-								*slash = '\0';
-							else
-								currentDirPath[0] = '\0';
+							// Remove last path component without strrchr
+							uint8_t esc_i = (uint8_t)strlen(currentDirPath);
+							while (esc_i && currentDirPath[esc_i - 1] != '/') esc_i--;
+							if (esc_i) esc_i--; // step back past '/'
+							currentDirPath[esc_i] = '\0';
 						} else {
 							dirMode = false;
 						}
 						printRequestData();
 						updateList();
-						break;
+					} else {
+						++end;
+						printCurrentLine();
 					}
-					++end;
+					break;
 				default:
 					printCurrentLine();
 					break;
