@@ -35,6 +35,9 @@ jobs:
       - name: Pull imagen Docker SDCC
         run: docker pull nataliapc/sdcc:4.2.0
 
+      - name: Generar recursos (res) antes del wildcard de utils.lib
+        run: make res
+
       - name: Compilar FH.COM
         run: make all
 
