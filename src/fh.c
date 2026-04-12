@@ -29,7 +29,7 @@
 #endif
 
 // ========================================================
-char *BASEURL = "http://api.file-hunter.com/index4.php?base=1BA0&type=%s&msx=%s&char=%s&download=";
+const char *BASEURL = "http://api.file-hunter.com/index4.php?base=1BA0&type=%s&msx=%s&char=%s&download=";
 
 const ReqType_t reqType[] = {
 	{"", ""},

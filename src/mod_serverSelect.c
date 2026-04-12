@@ -1,13 +1,13 @@
 /*
-    mod_serverSelect.c  –  STUB DE DIAGNÓSTICO v2
-    BASEURL ya apunta a File-Hunter como dato inicializado en DATA.
-    selectServer() no hace nada; si el .COM funciona ahora el problema
-    era el array[128] en BSS que corrompía el mapa de memoria.
+    mod_serverSelect.c  –  STUB DIAGNÓSTICO v3
+    Usa const char *BASEURL igual que el original de Natalia.
+    El puntero const char* puede reasignarse (solo los datos son const).
+    Si este build funciona: el problema era el tipo char* o char[128].
 */
 
 #include "fh.h"
 
 void selectServer(void)
 {
-    /* Stub: BASEURL ya inicializado en fh.c, nada que hacer */
+    /* BASEURL ya apunta a File-Hunter, nada que hacer en el stub */
 }
