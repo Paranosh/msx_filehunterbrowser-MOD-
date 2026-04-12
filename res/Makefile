@@ -27,8 +27,8 @@ all: $(OUTDIR)/$(HELP_ZX0_C) $(OUTDIR)/$(HELPCMD_ZX0_C)
 # =========================================================
 $(OUTDIR)/$(HELP_BIN): $(HELP_TXT)
 	@$(OUT_GUARD)
-	# remove \n\r from the txt and create with it the binary file, maintaining the trailing spaces
-	@sed 's/\r//g' $< | sed 's/$$/ /' | tr -d '\n' | tr -d '\r' | tr -d '\t' | tr -d '\f' > $@
+	# pad each line to exactly 80 chars (MSX screen width) then join without newlines
+	@sed 's/\r//g' $< | awk '{printf "%-80s", $$0}' | tr -d '\n' | tr -d '\r' | tr -d '\t' | tr -d '\f' > $@
 
 $(OUTDIR)/$(HELP_ZX0): $(OUTDIR)/$(HELP_BIN)
 	@$(BINDIR)/zx0 -f $< $@

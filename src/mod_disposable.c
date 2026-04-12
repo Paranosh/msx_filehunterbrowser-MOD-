@@ -137,7 +137,7 @@ inline void printHeader()
 	}
 
 	// Print footer
-	putstrxy(48,24, "F1:Help  F5:Download  RET:Search");
+	putstrxy(48,24, "F1:Help  F2:Search  RET:Select  ");
 }
 
 void initializeScreen()

@@ -619,12 +619,13 @@ void menu_loop()
 					case 'M':
 					nextTargetMSX();
 					break;
-				case KEY_RETURN:
+				case '2':
 					changeSearchString();
 					break;
 				case '1':
 					showHelpWindow();
 					break;
+				case KEY_RETURN:
 				case '5':
 				case KEY_SELECT:
 					if (!itemsCount) break;
