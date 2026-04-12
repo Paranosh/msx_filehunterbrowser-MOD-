@@ -634,7 +634,7 @@ void menu_loop()
 				case KEY_ESC:
 					if (dirMode) {
 						if (currentDirPath[0]) {
-							// Remove last path component without strrchr
+							// Remove last path component
 							uint8_t esc_i = (uint8_t)strlen(currentDirPath);
 							while (esc_i && currentDirPath[esc_i - 1] != '/') esc_i--;
 							if (esc_i) esc_i--; // step back past '/'
@@ -642,6 +642,11 @@ void menu_loop()
 						} else {
 							dirMode = false;
 						}
+						// Wait for ESC to be physically released so hget()
+						// does not interpret it as "cancel download"
+						while (varNEWKEY_row7.esc == 0) { ASM_EI; ASM_HALT; }
+						// Flush keyboard buffer
+						while (kbhit()) getch();
 						printRequestData();
 						updateList();
 					} else {
