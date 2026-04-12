@@ -706,6 +706,9 @@ int main(char **argv, int argc) __sdcccall(0)
 	// Initialize screen
 	initializeScreen();
 
+	// Load server URL from REPOS.TXT (if present)
+	selectServer();
+
 	// Initialize program
 	resetList();
 	initializeBuffers();

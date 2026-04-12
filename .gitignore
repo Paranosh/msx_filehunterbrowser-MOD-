@@ -9,7 +9,8 @@ bin/**/
 **/aux
 **/old
 **/out
-dsk
+dsk/*
+!dsk/repos.txt
 externals
 *.class
 _*
