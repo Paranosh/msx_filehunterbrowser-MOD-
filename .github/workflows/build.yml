@@ -18,22 +18,18 @@ jobs:
           submodules: recursive
 
       - name: Instalar dependencias
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y xxd srecord
-          # hex2bin no está en apt; usamos srec_cat (de srecord) con un wrapper
-          # que emula la sintaxis del Makefile: hex2bin -e com file.ihx -> file.com
-          sudo tee /usr/local/bin/hex2bin > /dev/null << 'EOF'
-          #!/bin/bash
-          EXT="$2"
-          IHX="$3"
-          OUT="${IHX%.ihx}.$EXT"
-          srec_cat "$IHX" -Intel -o "$OUT" -Binary
-          EOF
-          sudo chmod +x /usr/local/bin/hex2bin
+        run: sudo apt-get update -qq && sudo apt-get install -y xxd
 
       - name: Pull imagen Docker SDCC
         run: docker pull nataliapc/sdcc:4.2.0
+
+      - name: Extraer hex2bin de la imagen Docker
+        run: |
+          docker create --name temp_sdcc nataliapc/sdcc:4.2.0
+          sudo docker cp temp_sdcc:/usr/local/bin/hex2bin /usr/local/bin/hex2bin
+          docker rm temp_sdcc
+          sudo chmod +x /usr/local/bin/hex2bin
+          hex2bin -v || true
 
       - name: Generar recursos (res) antes del wildcard de utils.lib
         run: make res
