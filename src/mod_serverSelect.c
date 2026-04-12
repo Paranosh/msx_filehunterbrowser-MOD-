@@ -12,16 +12,6 @@
 #include "conio_aux.h"
 #include "fh.h"
 
-// putch no tiene declaración C accesible en esta versión de sdcc_msxconio;
-// usamos cputs con un string de un carácter como sustituto seguro.
-static void putch(uint8_t c)
-{
-    char s[2];
-    s[0] = (char)c;
-    s[1] = '\0';
-    cputs(s);
-}
-
 // ── Constantes de URL ────────────────────────────────────────────────────────
 
 #define FILEHUNTER_URL \
