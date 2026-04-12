@@ -44,6 +44,8 @@ void changeSearchString()
 
 	if (needUpdate) {
 		strcpy(request.search.value, buff);
+		// Exit directory mode when doing a text search
+		dirMode = false;
 		resetSelectedLine();
 	}
 	printRequestData();

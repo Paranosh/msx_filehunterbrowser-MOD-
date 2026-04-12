@@ -485,8 +485,8 @@ void selectPanel(Panel_t *panel)
 	currentPanel = panel;
 	request.type = panel->type;
 
-	// Exit directory mode when switching panels
-	dirMode = false;
+	// Start in directory browse mode when selecting a panel
+	dirMode = true;
 	currentDirPath[0] = '\0';
 
 	ASM_EI; ASM_HALT;
