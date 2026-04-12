@@ -29,7 +29,7 @@
 #endif
 
 // ========================================================
-char BASEURL[128] = "http://api.file-hunter.com/index4.php?base=1BA0&type=%s&msx=%s&char=%s&download=";
+char BASEURL[128];  // Inicializado en main() – no usar datos inicializados en MSX-DOS
 
 const ReqType_t reqType[] = {
 	{"", ""},
@@ -696,6 +696,9 @@ void restoreScreen()
 int main(char **argv, int argc) __sdcccall(0)
 {
 	argv, argc;
+
+	// Inicializar BASEURL con File-Hunter por defecto (no usar datos inicializados en BSS)
+	strcpy(BASEURL, "http://api.file-hunter.com/index4.php?base=1BA0&type=%s&msx=%s&char=%s&download=");
 
 	// Check arguments
 	checkArguments(argv, argc);
