@@ -139,6 +139,8 @@ void downloadFile()
 			strcpy(currentDirPath, buff);
 		}
 		dirMode = true;
+		// Flush keyboard buffer so hget() doesn't get a stale keypress
+		while (kbhit()) getch();
 		printRequestData();
 		updateList();
 		return;
