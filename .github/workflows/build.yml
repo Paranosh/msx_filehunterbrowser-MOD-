@@ -25,11 +25,12 @@ jobs:
 
       - name: Extraer hex2bin de la imagen Docker
         run: |
+          HEX2BIN_PATH=$(docker run --rm nataliapc/sdcc:4.2.0 which hex2bin)
+          echo "hex2bin en imagen: $HEX2BIN_PATH"
           docker create --name temp_sdcc nataliapc/sdcc:4.2.0
-          sudo docker cp temp_sdcc:/usr/local/bin/hex2bin /usr/local/bin/hex2bin
+          sudo docker cp "temp_sdcc:${HEX2BIN_PATH}" /usr/local/bin/hex2bin
           docker rm temp_sdcc
           sudo chmod +x /usr/local/bin/hex2bin
-          hex2bin -v || true
 
       - name: Generar recursos (res) antes del wildcard de utils.lib
         run: make res
