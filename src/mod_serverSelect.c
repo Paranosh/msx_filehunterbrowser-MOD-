@@ -52,9 +52,9 @@ static void drawBox(void)
     // Laterales
     for (i = 1; i < BOX_H - 1; i++) {
         gotoxy(BOX_X, BOX_Y + i);
-        cputchar('|');
+        cputch('|');
         gotoxy(BOX_X + BOX_W - 1, BOX_Y + i);
-        cputchar('|');
+        cputch('|');
     }
 }
 
@@ -100,7 +100,7 @@ static void readString(char *buf, uint8_t maxLen)
         } else if (c >= 32 && c < 127 && i < maxLen - 1) {
             buf[i++] = c;
             buf[i]   = '\0';
-            cputchar(c);
+            cputch(c);
         }
     }
 }
