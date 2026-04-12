@@ -12,6 +12,16 @@
 #include "conio_aux.h"
 #include "fh.h"
 
+// putch no tiene declaración C accesible en esta versión de sdcc_msxconio;
+// usamos cputs con un string de un carácter como sustituto seguro.
+static void putch(uint8_t c)
+{
+    char s[2];
+    s[0] = (char)c;
+    s[1] = '\0';
+    cputs(s);
+}
+
 // ── Constantes de URL ────────────────────────────────────────────────────────
 
 #define FILEHUNTER_URL \
@@ -52,9 +62,9 @@ static void drawBox(void)
     // Laterales
     for (i = 1; i < BOX_H - 1; i++) {
         gotoxy(BOX_X, BOX_Y + i);
-        cputch('|');
+        putch('|');
         gotoxy(BOX_X + BOX_W - 1, BOX_Y + i);
-        cputch('|');
+        putch('|');
     }
 }
 
@@ -100,7 +110,7 @@ static void readString(char *buf, uint8_t maxLen)
         } else if (c >= 32 && c < 127 && i < maxLen - 1) {
             buf[i++] = c;
             buf[i]   = '\0';
-            cputch(c);
+            putch(c);
         }
     }
 }
