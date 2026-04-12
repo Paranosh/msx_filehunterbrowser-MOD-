@@ -123,6 +123,27 @@ void downloadFileToDisk(ListItem_t *item)
 void downloadFile()
 {
 	ListItem_t *item = getCurrentItem();
+
+	// If it's a folder entry, navigate into it instead of downloading
+	if (item->loadMethod == 'F') {
+		uint8_t pathLen;
+		msx2_copyFromVRAM((uint32_t)item->name, (uint16_t)buff, 63);
+		buff[63] = '\0';
+		pathLen = strlen(currentDirPath);
+		if (currentDirPath[0]) {
+			if (pathLen + 1 + strlen(buff) < 63) {
+				currentDirPath[pathLen] = '/';
+				strcpy(currentDirPath + pathLen + 1, buff);
+			}
+		} else {
+			strcpy(currentDirPath, buff);
+		}
+		dirMode = true;
+		printRequestData();
+		updateList();
+		return;
+	}
+
 	bool end;
 	char *filename = malloc(8+1+3+1);
 

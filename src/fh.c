@@ -86,6 +86,8 @@ char *buff;
 Panel_t *currentPanel = &panels[PANEL_FIRST];
 int16_t itemsCount;
 int16_t topLine, currentLine;
+bool dirMode = false;
+char currentDirPath[64];
 
 #define MARQUEE_FIRST			200
 #define MARQUEE_STEP			6
@@ -194,9 +196,16 @@ void DataWriteCallback(char *rcv_buffer, int bytes_read)
 void formatURL(char *buff, uint16_t fileNum)
 {
 	char *buffSearch = (char*)malloc(SEARCH_MAX_SIZE + 1);
-	strcpy(buffSearch, request.search.value);
-	strReplaceChar(buffSearch, ' ', '+');
-	csprintf(buff, BASEURL, request.type->value, request.msx->value, buffSearch);
+	if (dirMode) {
+		char dirParam[65];
+		dirParam[0] = '|';
+		strcpy(dirParam + 1, currentDirPath);
+		csprintf(buff, BASEURL, request.type->value, request.msx->value, dirParam);
+	} else {
+		strcpy(buffSearch, request.search.value);
+		strReplaceChar(buffSearch, ' ', '+');
+		csprintf(buff, BASEURL, request.type->value, request.msx->value, buffSearch);
+	}
 	if (fileNum != -1) {
 		csprintf(buffSearch, "%u", fileNum);
 		strcat(buff, buffSearch);
@@ -319,11 +328,16 @@ void printRequestData()
 	csprintf(buff, "[M]SX:%s", request.msx->name);
 	putstrxy(71, 3, buff);
 
-	memset(buff, ' ', SEARCH_MAX_SIZE);
-	buff[SEARCH_MAX_SIZE] = '\0';
-	putstrxy(9,24, buff);
+	// Clear the full label+value area to avoid leftover chars
+	memset(buff, ' ', 30);
+	buff[30] = '\0';
+	putstrxy(2, 24, buff);
 
-	csprintf(buff, "Search:%s", request.search.value);
+	if (dirMode) {
+		csprintf(buff, "Dir:/%s", currentDirPath);
+	} else {
+		csprintf(buff, "Search:%s", request.search.value);
+	}
 	putstrxy(2, 24, buff);
 }
 
@@ -471,6 +485,10 @@ void selectPanel(Panel_t *panel)
 	currentPanel = panel;
 	request.type = panel->type;
 
+	// Exit directory mode when switching panels
+	dirMode = false;
+	currentDirPath[0] = '\0';
+
 	ASM_EI; ASM_HALT;
 	printTabs();
 	printRequestData();
@@ -592,6 +610,12 @@ void menu_loop()
 					newPanel = PANEL_CAS; break;
 				case 'V':
 					newPanel = PANEL_VGM; break;
+				case '/':
+					dirMode = true;
+					currentDirPath[0] = '\0';
+					printRequestData();
+					updateList();
+					break;
 					case 'M':
 					nextTargetMSX();
 					break;
@@ -607,6 +631,20 @@ void menu_loop()
 					downloadFile();
 					break;
 				case KEY_ESC:
+					if (dirMode) {
+						if (currentDirPath[0]) {
+							char *slash = strrchr(currentDirPath, '/');
+							if (slash)
+								*slash = '\0';
+							else
+								currentDirPath[0] = '\0';
+						} else {
+							dirMode = false;
+						}
+						printRequestData();
+						updateList();
+						break;
+					}
 					++end;
 				default:
 					printCurrentLine();

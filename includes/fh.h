@@ -19,6 +19,9 @@
 extern const char *BASEURL;
 void selectServer(void);
 
+extern bool dirMode;
+extern char currentDirPath[];
+
 #define PANEL_FIRSTY	5
 #define PANEL_LASTY		22
 #define PANEL_HEIGHT	(PANEL_LASTY - PANEL_FIRSTY + 1)
