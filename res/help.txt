@@ -7,8 +7,9 @@
                    UP/DOWN ........... Select item
                    RIGHT/LEFT ........ Next/Prev page
                    Shift+RIGHT/LEFT .. Begin/End of the list
-                   F2 .................... Search by text
                    F1 ................ Help
+                   F2 ................ Search by text
+                   F3 ................ Local file browser
                    ENTER/F5 .......... Select / Download file
                    ESC ............... Back / Exit
                    / ................. Browse folders from root
