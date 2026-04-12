@@ -1,0 +1,38 @@
+name: Build FH.COM
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:   # Permite lanzarlo manualmente desde GitHub
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout con submodulos
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Instalar dependencias (hex2bin, xxd)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y hex2bin xxd
+
+      - name: Pull imagen Docker SDCC
+        run: docker pull nataliapc/sdcc:4.2.0
+
+      - name: Compilar FH.COM
+        run: make all
+
+      - name: Subir FH.COM como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: fh-com
+          path: |
+            obj/fh.com
+            dsk/fh.com
+          retention-days: 30

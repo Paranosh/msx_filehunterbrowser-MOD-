@@ -16,7 +16,8 @@
 
 #define VRAM_START		0x1ba0
 
-extern const char *BASEURL;
+extern char BASEURL[128];
+void selectServer(void);
 
 #define PANEL_FIRSTY	5
 #define PANEL_LASTY		22

@@ -66,6 +66,7 @@ REL_LIBS = 	$(addprefix $(LIBDIR)/, $(LIBS)) \
 				mod_commandLine.rel \
 				mod_charPatterns.rel \
 				mod_disposable.rel \
+				mod_serverSelect.rel \
 			)
 
 PROGRAM = fh

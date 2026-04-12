@@ -29,7 +29,7 @@
 #endif
 
 // ========================================================
-const char *BASEURL = "http://api.file-hunter.com/index4.php?base=1BA0&type=%s&msx=%s&char=%s&download=";
+char BASEURL[128] = "http://api.file-hunter.com/index4.php?base=1BA0&type=%s&msx=%s&char=%s&download=";
 
 const ReqType_t reqType[] = {
 	{"", ""},
@@ -705,6 +705,9 @@ int main(char **argv, int argc) __sdcccall(0)
 
 	// Initialize screen
 	initializeScreen();
+
+	// Server selection menu
+	selectServer();
 
 	// Initialize program
 	resetList();
