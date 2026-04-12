@@ -1,16 +1,13 @@
 /*
-    mod_serverSelect.c  –  STUB DE DIAGNÓSTICO
-    Versión mínima: solo inicializa BASEURL a File-Hunter.
-    Si FH.COM funciona con esto, el problema estaba en el código UI anterior.
+    mod_serverSelect.c  –  STUB DE DIAGNÓSTICO v2
+    BASEURL ya apunta a File-Hunter como dato inicializado en DATA.
+    selectServer() no hace nada; si el .COM funciona ahora el problema
+    era el array[128] en BSS que corrompía el mapa de memoria.
 */
 
-#include <string.h>
 #include "fh.h"
 
 void selectServer(void)
 {
-    /* Stub: mantener File-Hunter por defecto, sin UI todavía */
-    strcpy(BASEURL,
-        "http://api.file-hunter.com/index4.php"
-        "?base=1BA0&type=%s&msx=%s&char=%s&download=");
+    /* Stub: BASEURL ya inicializado en fh.c, nada que hacer */
 }
