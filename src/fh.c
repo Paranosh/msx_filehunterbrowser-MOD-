@@ -706,9 +706,6 @@ int main(char **argv, int argc) __sdcccall(0)
 	// Initialize screen
 	initializeScreen();
 
-	// Server selection menu
-	selectServer();
-
 	// Initialize program
 	resetList();
 	initializeBuffers();
