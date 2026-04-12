@@ -17,10 +17,20 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Instalar dependencias (hex2bin, xxd)
+      - name: Instalar dependencias
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y hex2bin xxd
+          sudo apt-get install -y xxd srecord
+          # hex2bin no está en apt; usamos srec_cat (de srecord) con un wrapper
+          # que emula la sintaxis del Makefile: hex2bin -e com file.ihx -> file.com
+          sudo tee /usr/local/bin/hex2bin > /dev/null << 'EOF'
+          #!/bin/bash
+          EXT="$2"
+          IHX="$3"
+          OUT="${IHX%.ihx}.$EXT"
+          srec_cat "$IHX" -Intel -o "$OUT" -Binary
+          EOF
+          sudo chmod +x /usr/local/bin/hex2bin
 
       - name: Pull imagen Docker SDCC
         run: docker pull nataliapc/sdcc:4.2.0
