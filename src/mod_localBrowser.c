@@ -25,19 +25,16 @@
 #define LB_LIST_Y		(LB_WIN_Y1 + 2)			// first list entry row
 #define LB_LIST_ROWS	(LB_WIN_Y2 - LB_LIST_Y - 1)	// visible rows for entries
 
-#define LB_MAX_ENTRIES	60				// max entries per directory scan
+#define LB_MAX_ENTRIES	30				// max entries per directory scan
 #define LB_NAME_MAXLEN	13				// FFBLK filename is 13 bytes (includes null)
 
 #define ATTR_DIR		0x10			// MSX-DOS directory attribute bit
 
 // BIOS keyboard circular buffer
 // Characters injected here will be "read" by COMMAND.COM after fh.com exits
-#define PUTPNT_ADDR		0xF3F8u			// BIOS variable: write pointer into keyboard buffer
-#define KEYBUF_START	0xF41Fu			// keyboard buffer start address
-#define KEYBUF_END		0xF446u			// keyboard buffer end address (inclusive, 40 bytes)
-
-// Declare keyboard write pointer at its fixed BIOS address
-volatile __at (PUTPNT_ADDR) uint16_t varPUTPNT_local;
+// KEYBUF (0xFBF0) and PUTPNT (0xF3F8) are defined in msx_const.h
+#define KEYBUF_START	((uint16_t)KEYBUF)			// keyboard buffer start (0xFBF0)
+#define KEYBUF_END		((uint16_t)(KEYBUF + 40 - 1))	// keyboard buffer end  (0xFC17, inclusive)
 
 // ========================================================
 typedef struct {
@@ -60,7 +57,7 @@ static void lb_injectCommand(const char *cmd)
 	// Flush any pending keypresses so the buffer is empty
 	while (kbhit()) getch();
 
-	putpnt = varPUTPNT_local;
+	putpnt = varPUTPNT;
 
 	while (*cmd) {
 		*((char*)putpnt) = *cmd++;
@@ -70,7 +67,7 @@ static void lb_injectCommand(const char *cmd)
 	*((char*)putpnt) = '\r';
 	if (++putpnt > KEYBUF_END) putpnt = KEYBUF_START;
 
-	varPUTPNT_local = putpnt;
+	varPUTPNT = putpnt;
 }
 
 // ========================================================
@@ -273,8 +270,15 @@ void showLocalBrowser(void)
 	char savedPath[64];
 	char curPath[64];
 
-	// Save current directory to restore when browser closes normally
+	// Flush any pending keypresses so no stray key triggers an action immediately
+	while (kbhit()) getch();
+
+	// Save current directory so we can restore it when the browser closes
 	dos2_getCurrentDirectory(0, savedPath);
+
+	// Navigate to root of current drive — provides an explicit, valid default
+	// directory (fixes "no drive/directory reference" crash in Nextor).
+	dos2_setCurrentDirectory("\\");
 
 	// Allocate entry list on heap (above existing list data)
 	entries = (LBEntry_t *)malloc(LB_MAX_ENTRIES * sizeof(LBEntry_t));
