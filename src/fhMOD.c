@@ -24,6 +24,7 @@
 #include "mod_commandLine.h"
 #include "mod_help.h"
 #include "mod_localBrowser.h"
+#include "mod_serverBrowser.h"
 #include "mod_disposable.h"
 #ifdef _DEBUG_
 	#include "test.h"
@@ -626,6 +627,11 @@ void menu_loop()
 					break;
 				case '3':
 					showLocalBrowser();
+					break;
+				case '4':
+					if (showServerBrowser()) {
+						selectPanel(currentPanel);
+					}
 					break;
 				case '1':
 					showHelpWindow();

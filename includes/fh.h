@@ -17,11 +17,28 @@
 #define VRAM_START		0x1ba0
 
 extern const char *BASEURL;
+
+// ---- Multi-server list ----
+#define MAX_SERVERS        8
+#define SERVER_NAME_MAXLEN 24
+
+typedef struct {
+	char        name[SERVER_NAME_MAXLEN]; // display name (ASCIIZ)
+	const char *url;                      // pointer to URL string
+	bool        dirMode;                  // true = supports |path navigation
+} ServerEntry_t;
+
+extern ServerEntry_t serverList[];   // populated by selectServer()
+extern uint8_t       serverCount;    // number of valid entries (>= 1)
+extern uint8_t       currentServer;  // index of active server
+
 void selectServer(void);
 
 extern bool dirMode;
 extern bool serverHasDirMode;	// true = server supports directory navigation (|path syntax)
 extern char currentDirPath[];
+
+void selectPanel(Panel_t *panel);
 
 #define PANEL_FIRSTY	5
 #define PANEL_LASTY		22

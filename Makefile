@@ -67,6 +67,7 @@ REL_LIBS = 	$(addprefix $(LIBDIR)/, $(LIBS)) \
 				mod_charPatterns.rel \
 				mod_disposable.rel \
 				mod_localBrowser.rel \
+				mod_serverBrowser.rel \
 				mod_serverSelect.rel \
 			)
 
