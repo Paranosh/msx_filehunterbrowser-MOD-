@@ -43,6 +43,30 @@ typedef struct {
 } LBEntry_t;
 
 // ========================================================
+// Safe local wrapper for dos2_findnext.
+// The library's dos2_findnext uses a DOSJP tail-call: it sets IX = &ffblk
+// and then jumps into BDOS. BDOS "preserves" IX — but that means IX stays
+// pointing at &ffblk on return, NOT at lb_scanDir's SDCC frame pointer.
+// Every local variable access via (IX+d) in lb_scanDir is then wrong,
+// causing corrupted scan results or an infinite loop that freezes the MSX.
+// Workaround: save/restore IX around the BDOS call here, mirroring the
+// pattern already used by dos2_findfirst (which uses DOSCALL + push/pop ix).
+static ERRB lb_findnext(FFBLK *ffblk) __naked __sdcccall(1)
+{
+	ffblk;
+	__asm
+		push ix			; save caller's IX frame pointer
+		push hl
+		pop  ix			; IX = Param ffblk
+		ld   c,#FNEXT
+		call 5			; DOSCALL — proper call; preserves stack
+		pop  ix			; restore caller's IX frame pointer
+		ld   l, a		; Returns L (error code)
+		ret
+	__endasm;
+}
+
+// ========================================================
 extern void clearBlinkList();
 extern void printTabs();
 // restoreScreen() is declared in fh.h (already included)
@@ -134,7 +158,7 @@ static uint8_t lb_scanDir(LBEntry_t *entries)
 			entries[count].name[LB_NAME_MAXLEN] = '\0';
 			entries[count].isDir = 1;
 			count++;
-		} while (dos2_findnext(&ffblk) == 0);
+		} while (lb_findnext(&ffblk) == 0);
 	}
 
 	// Then files with recognised extensions
@@ -157,7 +181,7 @@ static uint8_t lb_scanDir(LBEntry_t *entries)
 				entries[count].isDir = 0;
 				count++;
 			}
-		} while (dos2_findnext(&ffblk) == 0);
+		} while (lb_findnext(&ffblk) == 0);
 	}
 
 	return count;
@@ -282,6 +306,13 @@ void showLocalBrowser(void)
 
 	// Allocate entry list on heap (above existing list data)
 	entries = (LBEntry_t *)malloc(LB_MAX_ENTRIES * sizeof(LBEntry_t));
+	if (!entries) {
+		// Restore original directory and return
+		buff[0] = '\\';
+		strcpy(buff + 1, savedPath);
+		dos2_setCurrentDirectory(buff);
+		return;
+	}
 
 	setSelectedLine(false);
 	lb_drawWindow();
