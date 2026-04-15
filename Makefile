@@ -58,7 +58,7 @@ LIBS = unapi_tcpip.lib dos.lib conio.lib utils.lib
 REL_LIBS = 	$(addprefix $(LIBDIR)/, $(LIBS)) \
 			$(addprefix $(OBJDIR)/, \
 				crt0msx_msxdos_advanced.rel \
-				fh.rel \
+				$(PROGRAM).rel \
 				heap.rel \
 				mod_searchString.rel \
 				mod_downloadFiles.rel \
@@ -70,7 +70,7 @@ REL_LIBS = 	$(addprefix $(LIBDIR)/, $(LIBS)) \
 				mod_serverSelect.rel \
 			)
 
-PROGRAM = fh
+PROGRAM = fhMOD
 DSKNAME = $(PROGRAM).dsk
 
 

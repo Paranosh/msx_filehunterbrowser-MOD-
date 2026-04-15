@@ -49,7 +49,7 @@ You can search, browse and download ROM cartridges, disk images, cassette files 
 Options to open the browser with a specific search configuration:
 
 ```bash
-FH [/H][/M <gen>][/S <search>][/P <panel>]
+FHMOD [/H][/M <gen>][/S <search>][/P <panel>]
 ```
 
 ### Options
@@ -68,10 +68,10 @@ FH [/H][/M <gen>][/S <search>][/P <panel>]
 
 ### Examples
 ```bash
-FH                             # Default search
-FH /M 2 /P dsk /S "konami"     # Search MSX2 disk images containing "konami"
-FH /P rom /S "gradius"         # Search ROM files containing "gradius"
-FH /M turbo-r                  # Browse Turbo-R compatible files
+FHMOD                             # Default search
+FHMOD /M 2 /P dsk /S "konami"    # Search MSX2 disk images containing "konami"
+FHMOD /P rom /S "gradius"         # Search ROM files containing "gradius"
+FHMOD /M turbo-r                  # Browse Turbo-R compatible files
 ```
 
 ## How to compile

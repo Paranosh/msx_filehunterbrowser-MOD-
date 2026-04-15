@@ -31,7 +31,7 @@
 #define ATTR_DIR		0x10			// MSX-DOS directory attribute bit
 
 // BIOS keyboard circular buffer
-// Characters injected here will be "read" by COMMAND.COM after fh.com exits
+// Characters injected here will be "read" by COMMAND.COM after fhMOD.com exits
 // KEYBUF (0xFBF0) and PUTPNT (0xF3F8) are defined in msx_const.h
 #define KEYBUF_START	((uint16_t)KEYBUF)			// keyboard buffer start (0xFBF0)
 #define KEYBUF_END		((uint16_t)(KEYBUF + 40 - 1))	// keyboard buffer end  (0xFC17, inclusive)
@@ -73,7 +73,7 @@ extern void printTabs();
 
 // ========================================================
 // Inject a command string into the BIOS keyboard buffer.
-// When fh.com exits afterwards, COMMAND.COM will read and execute it.
+// When fhMOD.com exits afterwards, COMMAND.COM will read and execute it.
 static void lb_injectCommand(const char *cmd)
 {
 	uint16_t putpnt;
@@ -95,7 +95,7 @@ static void lb_injectCommand(const char *cmd)
 }
 
 // ========================================================
-// Restore screen, inject command, and exit fh.com.
+// Restore screen, inject command, and exit fhMOD.com.
 // COMMAND.COM will then run the command from the keyboard buffer.
 static void lb_execCommand(const char *cmd)
 {
@@ -237,9 +237,9 @@ static void lb_printList(LBEntry_t *entries, uint8_t count,
 // ========================================================
 // Activate selected entry:
 //   directories  -> chdir + return 0 (rescan)
-//   .ROM         -> inject "SROM <file>" and exit fh.com
-//   .DSK         -> inject "MAPDRV B: <file>" and exit fh.com
-//   .COM/.BAS    -> inject "<file>" and exit fh.com
+//   .ROM         -> inject "SROM <file>" and exit fhMOD.com
+//   .DSK         -> inject "MAPDRV B: <file>" and exit fhMOD.com
+//   .COM/.BAS    -> inject "<file>" and exit fhMOD.com
 //   other        -> beep, return 0
 // Returns 1 if local browser should close (normal file action done).
 // Returns 0 if browser should stay open (directory nav or error).

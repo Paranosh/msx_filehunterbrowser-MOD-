@@ -129,7 +129,7 @@ inline void printHeader()
 	textblink(1,1, 80, true);
 
 	putstrxy(2,1, "\x85 File-Hunter Browser v"VERSIONAPP);
-	putstrxy(66,1, AUTHORAPP);
+	putstrxy(58,1, AUTHORAPP);
 
 	for (uint8_t i=0; i<80; i++) {
 		setByteVRAM(3*80+i, 0x17);

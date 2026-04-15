@@ -1,6 +1,6 @@
 /*
     mod_serverSelect.c
-    Reads REPOS.TXT (same directory as FH.COM) to configure the server URL
+    Reads REPOS.TXT (same directory as fhMOD.com) to configure the server URL
     and optionally enable directory-navigation mode.
 
     REPOS.TXT format:
