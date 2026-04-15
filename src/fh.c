@@ -88,6 +88,7 @@ Panel_t *currentPanel = &panels[PANEL_FIRST];
 int16_t itemsCount;
 int16_t topLine, currentLine;
 bool dirMode = false;
+bool serverHasDirMode = true;	// true = built-in server; overridden by selectServer()
 char currentDirPath[64];
 
 #define MARQUEE_FIRST			200
@@ -486,8 +487,8 @@ void selectPanel(Panel_t *panel)
 	currentPanel = panel;
 	request.type = panel->type;
 
-	// Start in directory browse mode when selecting a panel
-	dirMode = true;
+	// Start in directory browse mode only if the server supports it
+	dirMode = serverHasDirMode;
 	currentDirPath[0] = '\0';
 
 	ASM_EI; ASM_HALT;

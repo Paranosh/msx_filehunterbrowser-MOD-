@@ -20,6 +20,7 @@ extern const char *BASEURL;
 void selectServer(void);
 
 extern bool dirMode;
+extern bool serverHasDirMode;	// true = server supports directory navigation (|path syntax)
 extern char currentDirPath[];
 
 #define PANEL_FIRSTY	5
