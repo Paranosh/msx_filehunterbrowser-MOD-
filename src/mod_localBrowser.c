@@ -238,7 +238,7 @@ static void lb_printList(LBEntry_t *entries, uint8_t count,
 // Activate selected entry:
 //   directories  -> chdir + return 0 (rescan)
 //   .ROM         -> inject "SROM <file>" and exit fhMOD.com
-//   .DSK         -> inject "MAPDRV B: <file>" and exit fhMOD.com
+//   .DSK         -> inject "SRI <file>" and exit fhMOD.com  (SofaRunIt)
 //   .COM/.BAS    -> inject "<file>" and exit fhMOD.com
 //   other        -> beep, return 0
 // Returns 1 if local browser should close (normal file action done).
@@ -262,9 +262,8 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 		// never reached (dos2_exit called inside)
 
 	} else if (strcmp(dot, ".DSK") == 0) {
-		// "MAPDRV B: GAME.DSK" -> inject + exit
-		// COMMAND.COM will run MAPDRV and return to prompt
-		csprintf(buff, "MAPDRV B: %s", entry->name);
+		// "SRI GAME.DSK" -> inject + exit (uses SofaRunIt, same as SROM for ROMs)
+		csprintf(buff, "SRI %s", entry->name);
 		lb_execCommand(buff);
 		// never reached
 
