@@ -20,22 +20,25 @@
         # Extended server with directory navigation:
         My server|http://extended-server.com/index4.php?base=1BA0&type=%s&msx=%s&char=%s&download=|DIRMODE
 
-    If REPOS.TXT is absent the built-in default server is the only entry.
-    The built-in server is ALWAYS available as entry [0] regardless of
-    whether REPOS.TXT exists or what it contains.
+    If REPOS.TXT is absent or has no valid entries, the built-in server
+    is used as the sole entry.
+
+    When REPOS.TXT has valid entries they REPLACE the built-in: only the
+    entries from the file appear in the F4 selector.  The first entry
+    becomes the active server at startup.
 */
 
 #include <string.h>
 #include "dos.h"
 #include "fh.h"
 
-// URL storage pool for custom servers (built-in uses the BASEURL const directly)
-#define URL_POOL_SIZE  896   // 128 bytes * 7 custom server slots
+// URL storage pool for custom servers
+#define URL_POOL_SIZE  896   // 128 bytes x 7 entries
 
-static char   urlPool[URL_POOL_SIZE];
+static char     urlPool[URL_POOL_SIZE];
 static uint16_t urlPoolPos;
 
-// Line read buffer: must hold  Name(23) + '|' + URL(127) + '|' + "DIRMODE"(7) + LF + NUL
+// Line read buffer:  Name(23) + '|' + URL(127) + '|' + "DIRMODE"(7) + CRLF + NUL
 static char lineBuf[165];
 
 // ---- Exported globals (declared in fh.h) ----
@@ -44,27 +47,41 @@ uint8_t       serverCount  = 0;
 uint8_t       currentServer = 0;
 
 
-void selectServer(void)
+// ---- Set serverList[0] to the compiled-in built-in server ----
+static void useBuiltIn(void)
 {
-    FILEH  fh;
-    char  *p, *name, *url, *flag;
-    uint16_t ulen;
-    bool   dm;
-
-    // ---- Entry 0: built-in default (always present) ----
     strncpy(serverList[0].name, "api.file-hunter.com", SERVER_NAME_MAXLEN - 1);
     serverList[0].name[SERVER_NAME_MAXLEN - 1] = '\0';
-    serverList[0].url     = BASEURL;  // points to the const in fhMOD.c
+    serverList[0].url     = BASEURL;
     serverList[0].dirMode = true;
     serverCount   = 1;
     currentServer = 0;
-    urlPoolPos    = 0;
+}
 
-    if (!dos2_fileexists("REPOS.TXT")) return;
+
+void selectServer(void)
+{
+    FILEH    fh;
+    char    *p, *name, *url, *flag;
+    uint16_t ulen;
+    bool     dm;
+
+    serverCount  = 0;
+    currentServer = 0;
+    urlPoolPos   = 0;
+
+    if (!dos2_fileexists("REPOS.TXT")) {
+        useBuiltIn();
+        return;
+    }
 
     fh = dos2_fopen("REPOS.TXT", 0x01);
-    if (fh > 20) return;
+    if (fh > 20) {
+        useBuiltIn();
+        return;
+    }
 
+    // Parse every valid line from REPOS.TXT
     while (serverCount < MAX_SERVERS &&
            dos2_fgets(lineBuf, sizeof(lineBuf), fh)) {
 
@@ -76,35 +93,32 @@ void selectServer(void)
         // Skip blank lines and comment lines
         if (!lineBuf[0] || lineBuf[0] == '#') continue;
 
-        // Require Name|URL  separator
+        // Require Name|URL separator
         name = lineBuf;
         url  = strchr(lineBuf, '|');
-        if (!url) continue;   // old-format or malformed — skip
+        if (!url) continue;
         *url++ = '\0';
 
-        // Optional  |DIRMODE  suffix
+        // Optional |DIRMODE suffix
         flag = strchr(url, '|');
         dm   = false;
         if (flag) {
             *flag++ = '\0';
-            // strip any trailing whitespace/CR/LF from the flag word
             p = flag;
             while (*p && *p != '\r' && *p != '\n' && *p != ' ') p++;
             *p = '\0';
             dm = (strcmp(flag, "DIRMODE") == 0);
         }
 
-        // Skip entries with empty URL
+        // Skip entries with empty or over-long URL
         if (!url[0]) continue;
-
-        // Truncate URL if it is unreasonably long
         ulen = strlen(url);
         if (ulen >= 128) continue;
 
         // No room left in the URL pool
         if (urlPoolPos + ulen + 1 > URL_POOL_SIZE) break;
 
-        // Copy name (truncate to fit)
+        // Copy name (truncate to fit the display field)
         strncpy(serverList[serverCount].name, name, SERVER_NAME_MAXLEN - 1);
         serverList[serverCount].name[SERVER_NAME_MAXLEN - 1] = '\0';
 
@@ -118,4 +132,14 @@ void selectServer(void)
     }
 
     dos2_fclose(fh);
+
+    // If no valid entries were found, fall back to the built-in server
+    if (serverCount == 0) {
+        useBuiltIn();
+        return;
+    }
+
+    // Apply the first entry as the active server at startup
+    BASEURL          = serverList[0].url;
+    serverHasDirMode = serverList[0].dirMode;
 }

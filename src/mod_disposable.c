@@ -129,7 +129,7 @@ inline void printHeader()
 	textblink(1,1, 80, true);
 
 	putstrxy(2,1, "\x85 File-Hunter Browser v"VERSIONAPP);
-	putstrxy(58,1, AUTHORAPP);
+	putstrxy(66,1, AUTHORAPP);
 
 	for (uint8_t i=0; i<80; i++) {
 		setByteVRAM(3*80+i, 0x17);
@@ -137,7 +137,7 @@ inline void printHeader()
 	}
 
 	// Print footer
-	putstrxy(15,24, "F1:Help  F2:Search  F3:Local  F4:Server  RET:Select");
+	putstrxy(35,24, "F1:Help F2:Search F3:Local F4:Server RET:Sel");
 }
 
 void initializeScreen()
