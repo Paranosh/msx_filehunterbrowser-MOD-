@@ -41,6 +41,34 @@ static uint16_t urlPoolPos;
 // Line read buffer:  Name(23) + '|' + URL(127) + '|' + "DIRMODE"(7) + CRLF + NUL
 static char lineBuf[165];
 
+// Path to REPOS.TXT (resolved to the executable's directory at startup)
+// MAX_PATH_SIZE(64) + "REPOS.TXT"(9) + NUL = 74
+static char reposPath[74];
+
+// Build the full path to REPOS.TXT next to the running executable.
+// Falls back to bare "REPOS.TXT" (current directory) if the path
+// cannot be determined (e.g. MSX-DOS 1).
+static void buildReposPath(void)
+{
+    char progPath[MAX_PATH_SIZE];
+    char *p;
+
+    if (!getProgramPath(progPath)) {
+        strcpy(reposPath, "REPOS.TXT");
+        return;
+    }
+
+    // Find last '\' to isolate the directory portion
+    p = strrchr(progPath, '\\');
+    if (p) {
+        uint8_t dirLen = (uint8_t)((p - progPath) + 1);  // include the '\'
+        memcpy(reposPath, progPath, dirLen);
+        strcpy(reposPath + dirLen, "REPOS.TXT");
+    } else {
+        strcpy(reposPath, "REPOS.TXT");
+    }
+}
+
 // ---- Exported globals (declared in fh.h) ----
 ServerEntry_t serverList[MAX_SERVERS];
 uint8_t       serverCount  = 0;
@@ -73,12 +101,14 @@ void selectServer(void)
     currentServer = 0;
     urlPoolPos   = 0;
 
-    if (!dos2_fileexists("REPOS.TXT")) {
+    buildReposPath();
+
+    if (!dos2_fileexists(reposPath)) {
         useBuiltIn();
         return;
     }
 
-    fh = dos2_fopen("REPOS.TXT", 0x01);
+    fh = dos2_fopen(reposPath, 0x01);
     if (fh > 20) {
         useBuiltIn();
         return;
