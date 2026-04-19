@@ -53,7 +53,7 @@ static void useBuiltIn(void)
     strncpy(serverList[0].name, "api.file-hunter.com", SERVER_NAME_MAXLEN - 1);
     serverList[0].name[SERVER_NAME_MAXLEN - 1] = '\0';
     serverList[0].url     = BASEURL;
-    serverList[0].dirMode = true;
+    serverList[0].dirMode = false;  // official server: text-search mode, not dir-browse
     serverCount    = 1;
     currentServer  = 0;
     // Keep the global pointers in sync with the active entry

@@ -89,7 +89,7 @@ Panel_t *currentPanel = &panels[PANEL_FIRST];
 int16_t itemsCount;
 int16_t topLine, currentLine;
 bool dirMode = false;
-bool serverHasDirMode = true;	// true = built-in server; overridden by selectServer()
+bool serverHasDirMode = false;	// overridden by selectServer(); false = text-search mode
 bool localModeOnly    = false;	// true = no TCP/IP UNAPI; skip all network operations
 char currentDirPath[64];
 
