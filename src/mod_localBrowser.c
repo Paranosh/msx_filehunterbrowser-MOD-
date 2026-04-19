@@ -249,17 +249,51 @@ static const char lb_sofaRunMsg[] =
 	"  Powered by SofaRun\r\n"
 	"\r\n";
 
+// --------------------------------------------------------
+// Detect which SROM /Rx mapper parameter a ROM file needs.
+//
+// Detection rules:
+//   - File has "AB" header  -> return 0  (SROM auto-detects, no /Rx needed)
+//   - No "AB", size <= 64KB -> return 9  (Linear, /R9)
+//   - No "AB", size <=128KB -> return 1  (ASCII16, /R1)
+//   - No "AB", size > 128KB -> return 3  (ASCII8,  /R3)
+//
+// Returns 0 on any file-access error (SROM will try its own auto-detect).
+static uint8_t lb_detectROMMapper(const char *filename)
+{
+	FILEH   fh;
+	char    hdr[2];
+	int32_t size;
+
+	size = dos2_filesize((char*)filename);
+	if (size < 0) return 0;
+
+	fh = dos2_fopen((char*)filename, O_RDONLY);
+	if (fh > 20) return 0;
+	dos2_fread(hdr, 2, fh);
+	dos2_fclose(fh);
+
+	// Standard MSX ROM: let SROM handle auto-detection
+	if (hdr[0] == 'A' && hdr[1] == 'B') return 0;
+
+	// Non-standard header: size-based heuristics
+	if (size <= 0x10000L) return 9;   // <= 64 KB  : Linear  /R9
+	if (size <= 0x20000L) return 1;   // <= 128 KB : ASCII16 /R1
+	return 3;                          //  > 128 KB : ASCII8  /R3
+}
+
 // Activate selected entry:
 //   directories  -> chdir + return 0 (rescan)
-//   .ROM         -> inject "SROM /Q <file>" and exit fhMOD.com
-//   .DSK         -> inject "SRI <file>"     and exit fhMOD.com  (SofaRunIt)
-//   .COM/.BAS    -> inject "<file>"          and exit fhMOD.com
+//   .ROM         -> auto-detect mapper, inject "SROM [/Rx] <file>" + exit
+//   .DSK         -> inject "SRI <file>" and exit fhMOD.com  (SofaRunIt)
+//   .COM/.BAS    -> inject "<file>"     and exit fhMOD.com
 //   other        -> beep, return 0
-// Returns 1 if local browser should close (normal file action done).
+// Returns 1 if local browser should close (file action done).
 // Returns 0 if browser should stay open (directory nav or error).
 static uint8_t lb_activateEntry(LBEntry_t *entry)
 {
-	char *dot;
+	char    *dot;
+	uint8_t  mapper;
 
 	if (entry->isDir) {
 		dos2_setCurrentDirectory(entry->name);
@@ -270,14 +304,17 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 	if (!dot) { putchar('\x07'); return 0; }
 
 	if (strcmp(dot, ".ROM") == 0) {
-		// "SROM /Q GAME.ROM" -> inject + exit
-		// /Q = quiet mode (suppresses unnecessary output)
-		csprintf(buff, "SROM /Q %s", entry->name);
+		mapper = lb_detectROMMapper(entry->name);
+		if (mapper) {
+			csprintf(buff, "SROM /R%u %s", (uint16_t)mapper, entry->name);
+		} else {
+			csprintf(buff, "SROM %s", entry->name);
+		}
 		lb_execCommand(buff, lb_sofaRunMsg);
 		// never reached (dos2_exit called inside)
 
 	} else if (strcmp(dot, ".DSK") == 0) {
-		// "SRI GAME.DSK" -> inject + exit (SofaRunIt has no quiet-mode flag)
+		// SofaRunIt has no quiet-mode flag
 		csprintf(buff, "SRI %s", entry->name);
 		lb_execCommand(buff, lb_sofaRunMsg);
 		// never reached
