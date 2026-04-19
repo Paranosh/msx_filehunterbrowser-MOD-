@@ -38,8 +38,9 @@
 
 // ========================================================
 typedef struct {
-	char    name[14];	// ASCIIZ filename (up to 12.3 chars + null)
-	uint8_t isDir;		// 1 = directory, 0 = file
+	char     name[14];	// ASCIIZ filename (up to 12.3 chars + null)
+	uint8_t  isDir;		// 1 = directory, 0 = file
+	uint32_t size;		// file size in bytes (0 for directories)
 } LBEntry_t;
 
 // ========================================================
@@ -162,6 +163,7 @@ static uint8_t lb_scanDir(LBEntry_t *entries)
 			strncpy(entries[count].name, ffblk.filename, LB_NAME_MAXLEN);
 			entries[count].name[LB_NAME_MAXLEN] = '\0';
 			entries[count].isDir = 1;
+			entries[count].size  = 0;
 			count++;
 		} while (lb_findnext(&ffblk) == 0);
 	}
@@ -184,6 +186,7 @@ static uint8_t lb_scanDir(LBEntry_t *entries)
 				strncpy(entries[count].name, ffblk.filename, LB_NAME_MAXLEN);
 				entries[count].name[LB_NAME_MAXLEN] = '\0';
 				entries[count].isDir = 0;
+				entries[count].size  = ffblk.filesize;
 				count++;
 			}
 		} while (lb_findnext(&ffblk) == 0);
@@ -193,10 +196,29 @@ static uint8_t lb_scanDir(LBEntry_t *entries)
 }
 
 // ========================================================
+// Format a byte count into a compact string: "512B", "64K", "1M", etc.
+// Output buffer must be at least 7 bytes.
+static void lb_formatSize(char *out, uint32_t sz)
+{
+	uint16_t v;
+	if (sz < 1024UL) {
+		v = (uint16_t)sz;
+		csprintf(out, "%uB", v);
+	} else if (sz < 1024UL * 1024UL) {
+		v = (uint16_t)(sz / 1024UL);
+		csprintf(out, "%uK", v);
+	} else {
+		v = (uint16_t)(sz / (1024UL * 1024UL));
+		csprintf(out, "%uM", v);
+	}
+}
+
+// ========================================================
 // Print one entry row; selected=true highlights with blink
 static void lb_printEntry(uint8_t y, LBEntry_t *e, bool selected)
 {
 	uint8_t len;
+	char    sizeBuf[7];
 
 	memset(buff, ' ', 78);
 	buff[78] = '\0';
@@ -210,6 +232,10 @@ static void lb_printEntry(uint8_t y, LBEntry_t *e, bool selected)
 	} else {
 		len = strlen(e->name);
 		memcpy(buff, e->name, len);
+		// Right-align file size in the last 7 characters of the row
+		lb_formatSize(sizeBuf, e->size);
+		len = strlen(sizeBuf);
+		memcpy(buff + 78 - len, sizeBuf, len);
 	}
 
 	putlinexy(LB_LIST_X, y, 78, buff);

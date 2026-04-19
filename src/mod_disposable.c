@@ -98,17 +98,14 @@ void checkPlatformSystem()
 	char ret = hgetinit((uint16_t)unapiBuffer);
 	if (ret != ERR_TCPIPUNAPI_OK) {
 #ifndef _DEBUG_
-		if (ret == ERR_TCPIPUNAPI_NOT_TCPIP_CAPABLE) {
-			die("TCP/IP UNAPI not fully capable!\x07\r\n");
-		} else
-		if (ret == ERR_HGET_INVALID_BUFFER) {
-			die("Invalid buffer for TCP/IP UNAPI!\x07\r\n");
-		}
-		die("TCP/IP UNAPI not found!\x07\r\n");
+		// No UNAPI: switch to local-only mode instead of aborting
+		localModeOnly = true;
 #endif
 	}
-	// Format the user agent
-	formatUserAgent(msxdosVersion);
+	// Format the user agent only when UNAPI is actually available
+	if (!localModeOnly) {
+		formatUserAgent(msxdosVersion);
+	}
 
 
 	// Set abort exit routine

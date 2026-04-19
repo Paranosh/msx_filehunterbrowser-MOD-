@@ -90,6 +90,7 @@ int16_t itemsCount;
 int16_t topLine, currentLine;
 bool dirMode = false;
 bool serverHasDirMode = true;	// true = built-in server; overridden by selectServer()
+bool localModeOnly    = false;	// true = no TCP/IP UNAPI; skip all network operations
 char currentDirPath[64];
 
 #define MARQUEE_FIRST			200
@@ -511,8 +512,47 @@ inline void nextTargetMSX()
 
 
 // ========================================================
+// Draw the "no UNAPI" notice in the centre of the list area.
+static void printLocalModeNotice()
+{
+	clearListArea();
+	clearBlinkList();
+	putstrxy(25, UPDATING_POSY,   "TCP/IP UNAPI not found");
+	putstrxy(23, UPDATING_POSY+1, "Running in local-only mode");
+	putstrxy(22, UPDATING_POSY+3, "F3:Browse local files  ESC:Exit");
+}
+
+// ========================================================
 void menu_loop()
 {
+	// ---- Local-only mode (no TCP/IP UNAPI available) ----
+	if (localModeOnly) {
+		printTabs();
+		printRequestData();
+		printLocalModeNotice();
+
+		// Open F3 automatically at startup
+		showLocalBrowser();
+
+		// After F3 closes: redraw notice and wait for user input
+		char key;
+		bool end = false;
+		while (!end) {
+			printLocalModeNotice();
+			while (!kbhit()) { ASM_EI; ASM_HALT; }
+			key = dos2_toupper(getch());
+			if (key == '3') {
+				showLocalBrowser();
+			} else if (key == KEY_ESC) {
+				while (varNEWKEY_row7.esc == 0) { ASM_EI; ASM_HALT; }
+				while (kbhit()) getch();
+				end = true;
+			}
+		}
+		return;
+	}
+
+	// ---- Normal networked mode ----
 	// Initialize panel
 	selectPanel(currentPanel);
 

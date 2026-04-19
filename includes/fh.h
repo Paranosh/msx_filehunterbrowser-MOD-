@@ -36,6 +36,7 @@ void selectServer(void);
 
 extern bool dirMode;
 extern bool serverHasDirMode;	// true = server supports directory navigation (|path syntax)
+extern bool localModeOnly;		// true = no TCP/IP UNAPI found; skip all network operations
 extern char currentDirPath[];
 
 void selectPanel(Panel_t *panel);
