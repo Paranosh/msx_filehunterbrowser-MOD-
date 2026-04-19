@@ -278,21 +278,21 @@ static const char lb_sofaRunMsg[] =
 // --------------------------------------------------------
 // Detect which SROM /Rx mapper parameter a ROM file needs.
 //
-// Detection rules:
-//   - File has "AB" header   -> return 0  (SROM auto-detects, no /Rx needed)
-//   - No "AB", size <=  64KB -> return 9  (Linear,  /R9)
-//   - No "AB", size <= 256KB -> return 1  (ASCII16, /R1)
-//   - No "AB", size >  256KB -> return 3  (ASCII8,  /R3)
-//
-// The 256KB boundary is chosen because ROMs in the 64–256KB range without
-// an AB header (e.g. ASCII-X 16KB mapper games) typically use 16KB banking,
-// while very large ROMs (>256KB) commonly use 8KB banking (ASCII8).
+// Detection rules (checked in order):
+//   1. "AB" header at offset 0     -> 0  (SROM auto-detects)
+//   2. "ASCII16X" at offset 0x10   -> 1  (ASCII16-X, /R1)
+//      ASCII16-X (grauw.nl/projects/ascii-x) uses 16KB banking with the
+//      same register addresses as ASCII16 (6000H/7000H). For ROMs <=4MB
+//      the bank number fits in 8 bits, so it is fully /R1-compatible.
+//   3. No tag, size <= 64KB        -> 9  (Linear,  /R9)
+//   4. No tag, size <= 128KB       -> 1  (ASCII16, /R1)
+//   5. No tag, size >  128KB       -> 3  (ASCII8,  /R3)
 //
 // Returns 0 on any file-access error (SROM will try its own auto-detect).
 static uint8_t lb_detectROMMapper(const char *filename)
 {
 	FILEH   fh;
-	char    hdr[2];
+	char    hdr[24];	// enough to cover AB header (0) and ASCII16X tag (0x10..0x17)
 	int32_t size;
 
 	size = dos2_filesize((char*)filename);
@@ -300,16 +300,20 @@ static uint8_t lb_detectROMMapper(const char *filename)
 
 	fh = dos2_fopen((char*)filename, O_RDONLY);
 	if (fh > 20) return 0;
-	dos2_fread(hdr, 2, fh);
+	dos2_fread(hdr, sizeof(hdr), fh);
 	dos2_fclose(fh);
 
-	// Standard MSX ROM: let SROM handle auto-detection
+	// 1. Standard MSX ROM: let SROM handle auto-detection
 	if (hdr[0] == 'A' && hdr[1] == 'B') return 0;
 
-	// Non-standard header: size-based heuristics
-	if (size <= 0x10000L) return 9;   // <=  64 KB : Linear  /R9
-	if (size <= 0x40000L) return 1;   // <= 256 KB : ASCII16 /R1
-	return 3;                          //  > 256 KB : ASCII8  /R3
+	// 2. ASCII16-X: official identifier at offset 0x10
+	if (size >= (int32_t)sizeof(hdr) &&
+	    memcmp(&hdr[0x10], "ASCII16X", 8) == 0) return 1;
+
+	// 3-5. Size-based heuristics
+	if (size <= 0x10000L) return 9;   // <= 64 KB  : Linear  /R9
+	if (size <= 0x20000L) return 1;   // <= 128 KB : ASCII16 /R1
+	return 3;                          //  > 128 KB : ASCII8  /R3
 }
 
 // Activate selected entry:

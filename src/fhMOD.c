@@ -538,6 +538,15 @@ static void runLocalModeLoop(bool networkError)
 	printRequestData();
 	printLocalModeNotice(networkError);
 
+	// When falling back from a failed connection, let the user read the
+	// notice before the F3 browser opens automatically.
+	if (networkError) {
+		putstrxy(29, UPDATING_POSY+5, "Press any key...");
+		while (!kbhit()) { ASM_EI; ASM_HALT; }
+		getch();
+		while (kbhit()) getch();
+	}
+
 	// Open F3 automatically at startup
 	showLocalBrowser();
 
