@@ -307,15 +307,18 @@ void printLineCounter()
 
 void printTabs()
 {
+	// Reset blink for the full tab rows so lb_drawWindow's fillBlink(true)
+	// doesn't leave stale cyan-on-black on the separator line or tab borders.
+	textblink(1, 2, 80, false);
+	textblink(1, 3, 80, false);
+	textblink(1, 4, 80, false);
+
 	Panel_t *panel = panels;
 	while (panel->name[0]) {
 		if (panel == currentPanel) {
 			putstrxy(panel->posx, 2, "\x18\x17\x17\x17\x17\x17\x19");
 			putstrxy(panel->posx, 3, "\x16     \x16");
 			putstrxy(panel->posx, 4, "\x1b     \x1a");
-			textblink(panel->posx, 2, 7, true);
-			textblink(panel->posx, 3, 7, true);
-			textblink(panel->posx, 4, 7, true);
 			// Print description
 			_fillVRAM(34, MAX_PANEL_DESCRIPTION, ' ');
 			putstrxy(35, 1, panel->description);
@@ -323,9 +326,6 @@ void printTabs()
 			putstrxy(panel->posx, 2, "       ");
 			putstrxy(panel->posx, 3, "       ");
 			putstrxy(panel->posx, 4, "\x17\x17\x17\x17\x17\x17\x17");
-			textblink(panel->posx, 2, 7, false);
-			textblink(panel->posx, 3, 7, false);
-			textblink(panel->posx, 4, 7, false);
 		}
 		putstrxy(panel->posx+1, 3, panel->name);
 		++panel;
