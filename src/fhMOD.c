@@ -37,8 +37,7 @@ const ReqType_t reqType[] = {
 	{"", ""},
 	{"rom", ".ROM"},
 	{"dsk", ".DSK"},
-	{"cas", ".CAS"},
-	{"vgm", ".ZIP"}
+	{"cas", ".CAS"}
 };
 
 const ReqMSX_t reqMSX[] = {
@@ -50,7 +49,6 @@ const Panel_t panels[] = {
 	{"[R]OM", &reqType[REQTYPE_ROM], 'r', 8,  "[ ROM files ]"},
 	{"[D]SK", &reqType[REQTYPE_DSK], 'd', 15, "[ Disk images ]"},
 	{"[C]AS", &reqType[REQTYPE_CAS], 'c', 22, "[ CAS tape dumps ]"},
-	{"[V]GM", &reqType[REQTYPE_VGM], 'v', 29, "[ VGM music files ]"},
 	{"", NULL, 0, 0, NULL}
 };
 
@@ -748,9 +746,7 @@ void menu_loop()
 					newPanel = PANEL_DSK; break;
 				case 'C':
 					newPanel = PANEL_CAS; break;
-				case 'V':
-					newPanel = PANEL_VGM; break;
-				case '/':
+					case '/':
 					if (currentPanel == &panels[PANEL_LOCAL]) break;
 					dirMode = true;
 					currentDirPath[0] = '\0';

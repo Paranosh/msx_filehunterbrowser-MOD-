@@ -50,7 +50,6 @@ void selectPanel(Panel_t *panel);
 #define REQTYPE_ROM		1
 #define REQTYPE_DSK		2
 #define REQTYPE_CAS		3
-#define REQTYPE_VGM		4
 extern const ReqType_t reqType[];
 
 #define REQMSX_ALL		0
@@ -66,8 +65,7 @@ extern const ReqMSX_t reqMSX[];
 #define PANEL_ROM		1
 #define PANEL_DSK		2
 #define PANEL_CAS		3
-#define PANEL_VGM		4
-#define PANEL_LAST		PANEL_VGM
+#define PANEL_LAST		PANEL_CAS
 extern const Panel_t panels[];
 extern Panel_t *currentPanel;
 
