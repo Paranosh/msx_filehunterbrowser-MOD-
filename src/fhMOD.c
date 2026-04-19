@@ -512,49 +512,71 @@ inline void nextTargetMSX()
 
 
 // ========================================================
-// Draw the "no UNAPI" notice in the centre of the list area.
-static void printLocalModeNotice()
+// Draw the "no network" notice in the centre of the list area.
+// networkError=false : UNAPI driver not found
+// networkError=true  : UNAPI present but server/internet unreachable
+static void printLocalModeNotice(bool networkError)
 {
 	clearListArea();
 	clearBlinkList();
-	putstrxy(25, UPDATING_POSY,   "TCP/IP UNAPI not found");
-	putstrxy(23, UPDATING_POSY+1, "Running in local-only mode");
+	if (networkError) {
+		putstrxy(28, UPDATING_POSY,   "Network unreachable");
+		putstrxy(23, UPDATING_POSY+1, "Running in local-only mode");
+	} else {
+		putstrxy(25, UPDATING_POSY,   "TCP/IP UNAPI not found");
+		putstrxy(23, UPDATING_POSY+1, "Running in local-only mode");
+	}
 	putstrxy(22, UPDATING_POSY+3, "F3:Browse local files  ESC:Exit");
+}
+
+// --------------------------------------------------------
+// Shared local-mode wait loop used by both the no-UNAPI path
+// and the network-unreachable path.
+static void runLocalModeLoop(bool networkError)
+{
+	printTabs();
+	printRequestData();
+	printLocalModeNotice(networkError);
+
+	// Open F3 automatically at startup
+	showLocalBrowser();
+
+	// After F3 closes: redraw notice and wait for user input
+	char key;
+	bool end = false;
+	while (!end) {
+		printLocalModeNotice(networkError);
+		while (!kbhit()) { ASM_EI; ASM_HALT; }
+		key = dos2_toupper(getch());
+		if (key == '3') {
+			showLocalBrowser();
+		} else if (key == KEY_ESC) {
+			while (varNEWKEY_row7.esc == 0) { ASM_EI; ASM_HALT; }
+			while (kbhit()) getch();
+			end = true;
+		}
+	}
 }
 
 // ========================================================
 void menu_loop()
 {
-	// ---- Local-only mode (no TCP/IP UNAPI available) ----
+	// ---- Local-only mode (no TCP/IP UNAPI driver found) ----
 	if (localModeOnly) {
-		printTabs();
-		printRequestData();
-		printLocalModeNotice();
-
-		// Open F3 automatically at startup
-		showLocalBrowser();
-
-		// After F3 closes: redraw notice and wait for user input
-		char key;
-		bool end = false;
-		while (!end) {
-			printLocalModeNotice();
-			while (!kbhit()) { ASM_EI; ASM_HALT; }
-			key = dos2_toupper(getch());
-			if (key == '3') {
-				showLocalBrowser();
-			} else if (key == KEY_ESC) {
-				while (varNEWKEY_row7.esc == 0) { ASM_EI; ASM_HALT; }
-				while (kbhit()) getch();
-				end = true;
-			}
-		}
+		runLocalModeLoop(false);
 		return;
 	}
 
 	// ---- Normal networked mode ----
-	// Initialize panel
+	// Initialize panel (this also calls updateList / getRemoteList)
 	selectPanel(currentPanel);
+
+	// If the very first connection attempt fails, fall back to local-only mode
+	if (downloadStatus == DOWNLOAD_LIST_ERROR) {
+		localModeOnly = true;
+		runLocalModeLoop(true);
+		return;
+	}
 
 	// Menu loop
 	int8_t  newPanel = PANEL_NONE;

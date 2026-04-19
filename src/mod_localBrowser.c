@@ -279,10 +279,14 @@ static const char lb_sofaRunMsg[] =
 // Detect which SROM /Rx mapper parameter a ROM file needs.
 //
 // Detection rules:
-//   - File has "AB" header  -> return 0  (SROM auto-detects, no /Rx needed)
-//   - No "AB", size <= 64KB -> return 9  (Linear, /R9)
-//   - No "AB", size <=128KB -> return 1  (ASCII16, /R1)
-//   - No "AB", size > 128KB -> return 3  (ASCII8,  /R3)
+//   - File has "AB" header   -> return 0  (SROM auto-detects, no /Rx needed)
+//   - No "AB", size <=  64KB -> return 9  (Linear,  /R9)
+//   - No "AB", size <= 256KB -> return 1  (ASCII16, /R1)
+//   - No "AB", size >  256KB -> return 3  (ASCII8,  /R3)
+//
+// The 256KB boundary is chosen because ROMs in the 64–256KB range without
+// an AB header (e.g. ASCII-X 16KB mapper games) typically use 16KB banking,
+// while very large ROMs (>256KB) commonly use 8KB banking (ASCII8).
 //
 // Returns 0 on any file-access error (SROM will try its own auto-detect).
 static uint8_t lb_detectROMMapper(const char *filename)
@@ -303,9 +307,9 @@ static uint8_t lb_detectROMMapper(const char *filename)
 	if (hdr[0] == 'A' && hdr[1] == 'B') return 0;
 
 	// Non-standard header: size-based heuristics
-	if (size <= 0x10000L) return 9;   // <= 64 KB  : Linear  /R9
-	if (size <= 0x20000L) return 1;   // <= 128 KB : ASCII16 /R1
-	return 3;                          //  > 128 KB : ASCII8  /R3
+	if (size <= 0x10000L) return 9;   // <=  64 KB : Linear  /R9
+	if (size <= 0x40000L) return 1;   // <= 256 KB : ASCII16 /R1
+	return 3;                          //  > 256 KB : ASCII8  /R3
 }
 
 // Activate selected entry:
