@@ -54,8 +54,11 @@ static void useBuiltIn(void)
     serverList[0].name[SERVER_NAME_MAXLEN - 1] = '\0';
     serverList[0].url     = BASEURL;
     serverList[0].dirMode = true;
-    serverCount   = 1;
-    currentServer = 0;
+    serverCount    = 1;
+    currentServer  = 0;
+    // Keep the global pointers in sync with the active entry
+    BASEURL          = serverList[0].url;
+    serverHasDirMode = serverList[0].dirMode;
 }
 
 
