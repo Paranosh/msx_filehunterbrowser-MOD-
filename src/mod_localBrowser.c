@@ -97,10 +97,15 @@ static void lb_injectCommand(const char *cmd)
 // ========================================================
 // Restore screen, inject command, and exit fhMOD.com.
 // COMMAND.COM will then run the command from the keyboard buffer.
-static void lb_execCommand(const char *cmd)
+// If launchMsg is not NULL it is printed to the console after the screen
+// is restored so the user sees it while the launched program is loading.
+static void lb_execCommand(const char *cmd, const char *launchMsg)
 {
 	lb_injectCommand(cmd);
 	restoreScreen();
+	if (launchMsg) {
+		cputs(launchMsg);
+	}
 	dos2_exit(0);
 }
 
@@ -235,11 +240,20 @@ static void lb_printList(LBEntry_t *entries, uint8_t count,
 }
 
 // ========================================================
+// Message shown on the DOS console while SofaRun is loading.
+// Printed after restoreScreen() so it stays visible during the load.
+static const char lb_sofaRunMsg[] =
+	"\r\n"
+	"  Launching, please wait...\r\n"
+	"\r\n"
+	"  Powered by SofaRun\r\n"
+	"\r\n";
+
 // Activate selected entry:
 //   directories  -> chdir + return 0 (rescan)
-//   .ROM         -> inject "SROM <file>" and exit fhMOD.com
-//   .DSK         -> inject "SRI <file>" and exit fhMOD.com  (SofaRunIt)
-//   .COM/.BAS    -> inject "<file>" and exit fhMOD.com
+//   .ROM         -> inject "SROM /Q <file>" and exit fhMOD.com
+//   .DSK         -> inject "SRI <file>"     and exit fhMOD.com  (SofaRunIt)
+//   .COM/.BAS    -> inject "<file>"          and exit fhMOD.com
 //   other        -> beep, return 0
 // Returns 1 if local browser should close (normal file action done).
 // Returns 0 if browser should stay open (directory nav or error).
@@ -256,22 +270,23 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 	if (!dot) { putchar('\x07'); return 0; }
 
 	if (strcmp(dot, ".ROM") == 0) {
-		// "SROM GAME.ROM" -> inject + exit
-		csprintf(buff, "SROM %s", entry->name);
-		lb_execCommand(buff);
+		// "SROM /Q GAME.ROM" -> inject + exit
+		// /Q = quiet mode (suppresses unnecessary output)
+		csprintf(buff, "SROM /Q %s", entry->name);
+		lb_execCommand(buff, lb_sofaRunMsg);
 		// never reached (dos2_exit called inside)
 
 	} else if (strcmp(dot, ".DSK") == 0) {
-		// "SRI GAME.DSK" -> inject + exit (uses SofaRunIt, same as SROM for ROMs)
+		// "SRI GAME.DSK" -> inject + exit (SofaRunIt has no quiet-mode flag)
 		csprintf(buff, "SRI %s", entry->name);
-		lb_execCommand(buff);
+		lb_execCommand(buff, lb_sofaRunMsg);
 		// never reached
 
 	} else if (strcmp(dot, ".COM") == 0 ||
 	           strcmp(dot, ".BAS") == 0) {
-		// Run program directly
+		// Run program directly — no launcher message
 		csprintf(buff, "%s", entry->name);
-		lb_execCommand(buff);
+		lb_execCommand(buff, NULL);
 		// never reached
 	}
 
