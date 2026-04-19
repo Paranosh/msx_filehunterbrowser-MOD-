@@ -61,11 +61,12 @@ extern const ReqType_t reqType[];
 extern const ReqMSX_t reqMSX[];
 
 #define PANEL_NONE		-1
-#define PANEL_FIRST		PANEL_ROM
-#define PANEL_ROM		0
-#define PANEL_DSK		1
-#define PANEL_CAS		2
-#define PANEL_VGM		3
+#define PANEL_FIRST		PANEL_LOCAL
+#define PANEL_LOCAL		0
+#define PANEL_ROM		1
+#define PANEL_DSK		2
+#define PANEL_CAS		3
+#define PANEL_VGM		4
 #define PANEL_LAST		PANEL_VGM
 extern const Panel_t panels[];
 extern Panel_t *currentPanel;

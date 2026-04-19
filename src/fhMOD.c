@@ -46,10 +46,11 @@ const ReqMSX_t reqMSX[] = {
 };
 
 const Panel_t panels[] = {
-	{"[R]OM", &reqType[REQTYPE_ROM], 'r', 1,  "[ ROM files ]"},
-	{"[D]SK", &reqType[REQTYPE_DSK], 'd', 8,  "[ Disk images ]"},
-	{"[C]AS", &reqType[REQTYPE_CAS], 'c', 15, "[ CAS tape dumps ]"},
-	{"[V]GM", &reqType[REQTYPE_VGM], 'v', 22, "[ VGM music files ]"},
+	{"[L]oc", NULL,                'l', 1,  "[ Local file browser ]"},
+	{"[R]OM", &reqType[REQTYPE_ROM], 'r', 8,  "[ ROM files ]"},
+	{"[D]SK", &reqType[REQTYPE_DSK], 'd', 15, "[ Disk images ]"},
+	{"[C]AS", &reqType[REQTYPE_CAS], 'c', 22, "[ CAS tape dumps ]"},
+	{"[V]GM", &reqType[REQTYPE_VGM], 'v', 29, "[ VGM music files ]"},
 	{"", NULL, 0, 0, NULL}
 };
 
@@ -329,6 +330,13 @@ void printTabs()
 
 void printRequestData()
 {
+	// Local panel: clear MSX field and search area (nothing to show)
+	if (currentPanel == &panels[PANEL_LOCAL]) {
+		putstrxy(71, 3, "          ");
+		putstrxy(2, 24, "                              ");
+		return;
+	}
+
 	csprintf(buff, "[M]SX:%s", request.msx->name);
 	putstrxy(71, 3, buff);
 
@@ -572,6 +580,24 @@ static void runLocalModeLoop(bool networkError)
 }
 
 // ========================================================
+// Open the Local panel: draw tabs, enter the local browser,
+// then restore the idle screen (Local tab selected, empty list area).
+static void openLocalPanel(void)
+{
+	currentPanel = &panels[PANEL_LOCAL];
+	printTabs();
+	printRequestData();
+	clearListArea();
+	itemsCount = 0;
+	resetSelectedLine();
+	showLocalBrowser();
+	// Restore screen after local browser exits
+	printTabs();
+	clearListArea();
+	printRequestData();
+}
+
+// ========================================================
 void menu_loop()
 {
 	// ---- Local-only mode (no TCP/IP UNAPI driver found) ----
@@ -581,14 +607,18 @@ void menu_loop()
 	}
 
 	// ---- Normal networked mode ----
-	// Initialize panel (this also calls updateList / getRemoteList)
-	selectPanel(currentPanel);
-
-	// If the very first connection attempt fails, fall back to local-only mode
-	if (downloadStatus == DOWNLOAD_LIST_ERROR) {
-		localModeOnly = true;
-		runLocalModeLoop(true);
-		return;
+	// Initialize the startup panel
+	if (currentPanel == &panels[PANEL_LOCAL]) {
+		// Local tab: open local browser, no network call needed
+		openLocalPanel();
+	} else {
+		selectPanel(currentPanel);
+		// If the very first connection attempt fails, fall back to local-only mode
+		if (downloadStatus == DOWNLOAD_LIST_ERROR) {
+			localModeOnly = true;
+			runLocalModeLoop(true);
+			return;
+		}
 	}
 
 	// Menu loop
@@ -678,8 +708,14 @@ void menu_loop()
 							currentPanel = &panels[PANEL_FIRST];
 						}
 					}
-					selectPanel(currentPanel);
+					if (currentPanel == &panels[PANEL_LOCAL]) {
+						openLocalPanel();
+					} else {
+						selectPanel(currentPanel);
+					}
 					break;
+				case 'L':
+					newPanel = PANEL_LOCAL; break;
 				case 'R':
 					newPanel = PANEL_ROM; break;
 				case 'D':
@@ -689,23 +725,25 @@ void menu_loop()
 				case 'V':
 					newPanel = PANEL_VGM; break;
 				case '/':
+					if (currentPanel == &panels[PANEL_LOCAL]) break;
 					dirMode = true;
 					currentDirPath[0] = '\0';
 					printRequestData();
 					updateList();
 					break;
-					case 'M':
+				case 'M':
+					if (currentPanel == &panels[PANEL_LOCAL]) break;
 					nextTargetMSX();
 					break;
 				case '2':
+					if (currentPanel == &panels[PANEL_LOCAL]) break;
 					changeSearchString();
-					break;
-				case '3':
-					showLocalBrowser();
 					break;
 				case '4':
 					if (showServerBrowser()) {
-						selectPanel(currentPanel);
+						if (currentPanel != &panels[PANEL_LOCAL]) {
+							selectPanel(currentPanel);
+						}
 					}
 					break;
 				case '1':
@@ -714,6 +752,10 @@ void menu_loop()
 				case KEY_RETURN:
 				case '5':
 				case KEY_SELECT:
+					if (currentPanel == &panels[PANEL_LOCAL]) {
+						openLocalPanel();
+						break;
+					}
 					if (!itemsCount) break;
 					downloadFile();
 					break;
@@ -746,8 +788,12 @@ void menu_loop()
 			}
 			if (newPanel != PANEL_NONE) {
 				if (currentPanel != &panels[newPanel]) {
-					currentPanel = &panels[newPanel];
-					selectPanel(currentPanel);
+					if (newPanel == PANEL_LOCAL) {
+						openLocalPanel();
+					} else {
+						currentPanel = &panels[newPanel];
+						selectPanel(currentPanel);
+					}
 				}
 				newPanel = PANEL_NONE;
 			}

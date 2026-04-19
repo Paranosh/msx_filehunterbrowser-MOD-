@@ -1,15 +1,14 @@
 
                    Usage keys:
 
-                   M ................. Change MSX target
-                   R/D/C/V ........... Select a panel
+                   L/R/D/C/V ......... Select a panel
                    TAB ............... Next panel
+                   M ................. Change MSX target
                    UP/DOWN ........... Select item
                    RIGHT/LEFT ........ Next/Prev page
                    Shift+RIGHT/LEFT .. Begin/End of the list
                    F1 ................ Help
                    F2 ................ Search by text
-                   F3 ................ Local file browser
                    ENTER/F5 .......... Select / Download file
                    ESC ............... Back / Exit
                    / ................. Browse folders from root
