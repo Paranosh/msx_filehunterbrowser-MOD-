@@ -120,7 +120,11 @@ static void lb_drawWindow(void)
 		_fillVRAM((uint16_t)((y - 1) * 80), 80, ' ');
 	}
 
-	fillBlink(LB_WIN_X1, LB_WIN_Y1, LB_WIN_Y2 - LB_WIN_Y1 + 1, 80, true);
+	// Only blink the inner content columns (LB_LIST_X..LB_WIN_X2-1)
+	// so the │ border chars at col 1 and col 80 stay white-on-dark-blue.
+	// This prevents the selection bar from visually overflowing the frame.
+	fillBlink(LB_LIST_X, LB_WIN_Y1, LB_WIN_Y2 - LB_WIN_Y1 + 1,
+	          LB_WIN_X2 - LB_LIST_X, true);
 	drawFrame(LB_WIN_X1, LB_WIN_Y1, LB_WIN_X2, LB_WIN_Y2);
 	putstrxy(3, LB_WIN_Y2, " UP/DOWN:Navigate  ENTER:Open/Launch  ESC:Back ");
 }
@@ -257,8 +261,11 @@ static void lb_printList(LBEntry_t *entries, uint8_t count,
 		if (idx < count) {
 			lb_printEntry(y, &entries[idx], (i == curLine));
 		} else {
-			_fillVRAM((uint16_t)((y - 1) * 80), 80, ' ');
-			textblink(LB_LIST_X, y, 78, false);
+			// Clear only the inner area (cols LB_LIST_X..LB_WIN_X2-1)
+			// so the │ border chars at col 1 and col 80 are preserved.
+			_fillVRAM((uint16_t)((y - 1) * 80 + (LB_LIST_X - 1)),
+			          LB_WIN_X2 - LB_LIST_X, ' ');
+			textblink(LB_LIST_X, y, LB_WIN_X2 - LB_LIST_X, false);
 		}
 	}
 
