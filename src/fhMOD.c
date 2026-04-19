@@ -582,7 +582,9 @@ static void runLocalModeLoop(bool networkError)
 // ========================================================
 // Open the Local panel: draw tabs, enter the local browser,
 // then restore the idle screen (Local tab selected, empty list area).
-static void openLocalPanel(void)
+// Returns true if the browser was closed with TAB (caller should advance
+// to the next panel immediately rather than staying on Local).
+static bool openLocalPanel(void)
 {
 	currentPanel = &panels[PANEL_LOCAL];
 	printTabs();
@@ -590,11 +592,12 @@ static void openLocalPanel(void)
 	clearListArea();
 	itemsCount = 0;
 	resetSelectedLine();
-	showLocalBrowser();
+	bool tabExit = showLocalBrowser();
 	// Restore screen after local browser exits
 	printTabs();
 	clearListArea();
 	printRequestData();
+	return tabExit;
 }
 
 // ========================================================
@@ -609,8 +612,17 @@ void menu_loop()
 	// ---- Normal networked mode ----
 	// Initialize the startup panel
 	if (currentPanel == &panels[PANEL_LOCAL]) {
-		// Local tab: open local browser, no network call needed
-		openLocalPanel();
+		// Local tab: open local browser, no network call needed.
+		// If user pressed TAB to exit, advance directly to ROM panel.
+		if (openLocalPanel()) {
+			currentPanel = &panels[PANEL_ROM];
+			selectPanel(currentPanel);
+			if (downloadStatus == DOWNLOAD_LIST_ERROR) {
+				localModeOnly = true;
+				runLocalModeLoop(true);
+				return;
+			}
+		}
 	} else {
 		selectPanel(currentPanel);
 		// If the very first connection attempt fails, fall back to local-only mode
@@ -709,7 +721,15 @@ void menu_loop()
 						}
 					}
 					if (currentPanel == &panels[PANEL_LOCAL]) {
-						openLocalPanel();
+						if (openLocalPanel()) {
+							// User pressed TAB to exit: advance past Local
+							if (shiftPressed) {
+								currentPanel = &panels[PANEL_LAST];
+							} else {
+								currentPanel = &panels[PANEL_ROM];
+							}
+							selectPanel(currentPanel);
+						}
 					} else {
 						selectPanel(currentPanel);
 					}

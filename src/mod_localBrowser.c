@@ -367,13 +367,14 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 
 // ========================================================
 // Entry point: show the local file browser overlay
-void showLocalBrowser(void)
+bool showLocalBrowser(void)
 {
 	LBEntry_t *entries;
 	uint8_t count;
 	uint8_t topLine;
 	uint8_t curLine;
 	bool done;
+	bool tabExit;
 	char key;
 	uint8_t action;
 	char savedPath[64];
@@ -403,6 +404,7 @@ void showLocalBrowser(void)
 	lb_drawWindow();
 
 	done    = false;
+	tabExit = false;
 	topLine = 0;
 	curLine = 0;
 	count   = lb_scanDir(entries);
@@ -473,6 +475,12 @@ void showLocalBrowser(void)
 			} else {
 				done = true;		// Already at root — close browser
 			}
+
+		} else if (key == KEY_TAB) {
+			// TAB closes the browser and signals the caller to advance
+			// to the next panel (so a single TAB press cycles panels).
+			tabExit = true;
+			done    = true;
 		}
 	}
 
@@ -491,4 +499,6 @@ void showLocalBrowser(void)
 	printRequestData();
 	printList();
 	setSelectedLine(true);
+
+	return tabExit;
 }

@@ -6,4 +6,6 @@
 */
 #pragma once
 
-void showLocalBrowser(void);
+// Returns true if the browser was closed by pressing TAB
+// (caller should advance to the next panel).
+bool showLocalBrowser(void);
