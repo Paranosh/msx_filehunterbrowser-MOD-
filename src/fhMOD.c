@@ -373,15 +373,19 @@ void printItem(uint8_t y, ListItem_t *item)
 	memset(&buff[len], ' ', 80);
 	buff[80] = '\0';
 
-	// Add load method
-	if (item->loadMethod) {
-		csprintf(heap_top, " (%c)     ", item->loadMethod);
-		memncpy(&buff[ITEM_POS_LOAD], heap_top, '\0', 5);
+	// Add load method / directory indicator
+	if (item->loadMethod == 'F') {
+		// Directory entry: append '/' after the name; omit mapper code and size
+		if (len < MAX_NAME_SIZE) buff[len] = '/';
+	} else {
+		if (item->loadMethod) {
+			csprintf(heap_top, " (%c)     ", item->loadMethod);
+			memncpy(&buff[ITEM_POS_LOAD], heap_top, '\0', 5);
+		}
+		// Add size
+		formatSize(heap_top, item->size);
+		strcpy(&buff[ITEM_POS_SIZE-strlen(heap_top)], heap_top);
 	}
-
-	// Add size
-	formatSize(heap_top, item->size);
-	strcpy(&buff[ITEM_POS_SIZE-strlen(heap_top)], heap_top);
 
 	putlinexy(2,y, 78, buff);
 }
