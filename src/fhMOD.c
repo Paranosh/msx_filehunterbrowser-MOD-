@@ -433,6 +433,12 @@ void printList()
 				++item;
 			} else {
 				_fillVRAM((y-1)*80, (PANEL_LASTY-y+1)*80, ' ');
+				// Restore │ side borders destroyed by the bulk fill above
+				uint8_t ey;
+				for (ey = y; ey <= PANEL_LASTY; ey++) {
+					setByteVRAM((uint16_t)((ey-1)*80),    0x16);
+					setByteVRAM((uint16_t)((ey-1)*80+79), 0x16);
+				}
 				break;
 			}
 		}
@@ -607,6 +613,12 @@ static bool openLocalPanel(void)
 	itemsCount = 0;
 	resetSelectedLine();
 	bool tabExit = showLocalBrowser();
+	// Restore separator lines that lb_drawWindow overwrote (rows 4 and 23)
+	uint8_t i;
+	for (i=0; i<80; i++) {
+		setByteVRAM(3*80+i,  0x17);  // row 4: ─────
+		setByteVRAM(22*80+i, 0x17);  // row 23: ─────
+	}
 	// Restore screen after local browser exits
 	printTabs();
 	clearListArea();
