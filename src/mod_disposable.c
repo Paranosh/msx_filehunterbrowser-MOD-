@@ -133,6 +133,12 @@ inline void printHeader()
 		setByteVRAM(22*80+i, 0x17);
 	}
 
+	// Draw │ side borders at col 1 and col 80 for the list rows (5-22)
+	for (uint8_t y=PANEL_FIRSTY; y<=PANEL_LASTY; y++) {
+		setByteVRAM((uint16_t)((y-1)*80),    0x16);  // │ at col 1
+		setByteVRAM((uint16_t)((y-1)*80+79), 0x16);  // │ at col 80
+	}
+
 	// Print footer
 	putstrxy(35,24, "F1:Help F2:Search F4:Server RET:Sel         ");
 }

@@ -416,7 +416,7 @@ void printCurrentLine()
 void setSelectedLine(bool selected)
 {
 	printCurrentLine();
-	textblink(1, PANEL_FIRSTY+currentLine, 80, selected);
+	textblink(2, PANEL_FIRSTY+currentLine, 78, selected);
 }
 
 void printList()
@@ -450,6 +450,8 @@ void panelScrollUp()
 	msx2_copyFromVRAM(0+(PANEL_FIRSTY)*80, (uint16_t)heap_top, (PANEL_HEIGHT-1)*80);
 	msx2_copyToVRAM((uint16_t)heap_top, 0+(PANEL_FIRSTY-1)*80, (PANEL_HEIGHT-1)*80);
 	_fillVRAM(0+(PANEL_LASTY-1)*80, 80, ' ');
+	setByteVRAM((PANEL_LASTY-1)*80,    0x16);
+	setByteVRAM((PANEL_LASTY-1)*80+79, 0x16);
 }
 
 void panelScrollDown()
@@ -457,11 +459,19 @@ void panelScrollDown()
 	msx2_copyFromVRAM(0+(PANEL_FIRSTY-1)*80, (uint16_t)heap_top, (PANEL_HEIGHT-1)*80);
 	msx2_copyToVRAM((uint16_t)heap_top, 0+(PANEL_FIRSTY)*80, (PANEL_HEIGHT-1)*80);
 	_fillVRAM(0+(PANEL_FIRSTY-1)*80, 80, ' ');
+	setByteVRAM((PANEL_FIRSTY-1)*80,    0x16);
+	setByteVRAM((PANEL_FIRSTY-1)*80+79, 0x16);
 }
 
 void clearListArea()
 {
+	uint8_t y;
 	_fillVRAM(0+4*80, 18*80, ' ');
+	// Restore │ side borders at col 1 and col 80 (cleared by the fill above)
+	for (y=PANEL_FIRSTY; y<=PANEL_LASTY; y++) {
+		setByteVRAM((uint16_t)((y-1)*80),    0x16);
+		setByteVRAM((uint16_t)((y-1)*80+79), 0x16);
+	}
 }
 
 
