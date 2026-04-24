@@ -127,10 +127,12 @@ static void lb_drawWindow(void)
 	putstrxy(3, LB_WIN_Y2, " UP/DOWN:Navigate  ENTER:Open/Launch  ESC:Back ");
 
 	// Replace the ┌ top-left corner with │ + blank spaces under the
-	// "[L]oc" tab text (5 chars), so the frame "opens" beneath the tab
-	// like the other tabs do. Col 1 = │, cols 2..6 = spaces, col 7 = ─.
-	setByteVRAM((uint16_t)((LB_WIN_Y1 - 1) * 80), 0x16);     // │
-	_fillVRAM((uint16_t)((LB_WIN_Y1 - 1) * 80 + 1), 5, ' '); // blank under "[L]oc"
+	// "[L]oc" tab text (5 chars), and put a └ at col 7 so the tab's
+	// right edge "opens" into the frame like the other tabs do.
+	// Col 1 = │, cols 2..6 = spaces, col 7 = └, col 8+ = ─ (already drawn).
+	setByteVRAM((uint16_t)((LB_WIN_Y1 - 1) * 80), 0x16);      // │
+	_fillVRAM((uint16_t)((LB_WIN_Y1 - 1) * 80 + 1), 5, ' ');  // blank under "[L]oc"
+	setByteVRAM((uint16_t)((LB_WIN_Y1 - 1) * 80 + 6), 0x1a);  // └
 }
 
 // ========================================================
