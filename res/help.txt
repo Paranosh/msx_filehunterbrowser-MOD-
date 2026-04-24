@@ -9,9 +9,9 @@
                    Shift+RIGHT/LEFT .. Begin/End of the list
                    F1 ................ Help
                    F2 ................ Search by text
-                   ENTER/F5 .......... Select / Download file
+                   F5 ................ Launch SofaRun (SR.COM)
+                   ENTER ............. Select / Download file
                    ESC ............... Back / Exit
                    / ................. Browse folders from root
 
                Thanks to Arnaud, JOM, LManes, Ducasp, & Konamiman
-

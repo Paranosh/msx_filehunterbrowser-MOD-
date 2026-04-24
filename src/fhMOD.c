@@ -26,6 +26,7 @@
 #include "mod_localBrowser.h"
 #include "mod_serverBrowser.h"
 #include "mod_disposable.h"
+#include "mod_launcher.h"
 #ifdef _DEBUG_
 	#include "test.h"
 #endif
@@ -295,6 +296,10 @@ void removeUpdateMessage()
 {
 	_fillVRAM(0+UPDATING_POSY*80, 80, ' ');
 	fillBlink(1,UPDATING_POSY, 3,80, false);
+	// Restore │ side borders at col 1 and col 80 of the cleared row
+	// (the _fillVRAM above overwrote them; this row holds list item #8)
+	setByteVRAM((uint16_t)(UPDATING_POSY*80),      0x16);
+	setByteVRAM((uint16_t)(UPDATING_POSY*80 + 79), 0x16);
 }
 
 void printLineCounter()
@@ -329,6 +334,14 @@ void printTabs()
 		}
 		putstrxy(panel->posx+1, 3, panel->name);
 		++panel;
+	}
+
+	// Outer frame top-left corner (1, 4):
+	//   - Local tab active : (1,4) is └ drawn by the tab (tab-end corner)
+	//   - Local tab inactive: tab draws ─ at (1,4); replace with ┌ so the
+	//     outer frame closes cleanly at the top-left.
+	if (currentPanel != &panels[PANEL_LOCAL]) {
+		setByteVRAM(3*80, 0x18);   // ┌
 	}
 }
 
@@ -619,6 +632,11 @@ static bool openLocalPanel(void)
 		setByteVRAM(3*80+i,  0x17);  // row 4: ─────
 		setByteVRAM(22*80+i, 0x17);  // row 23: ─────
 	}
+	// Restore outer frame corners overwritten by the fill above.
+	// (┌ top-left is handled by printTabs depending on Local active state.)
+	setByteVRAM(3*80 + 79,  0x19);   // ┐ top-right
+	setByteVRAM(22*80,      0x1b);   // └ bottom-left
+	setByteVRAM(22*80 + 79, 0x1a);   // ┘ bottom-right
 	// Restore screen after local browser exits
 	printTabs();
 	clearListArea();
@@ -794,7 +812,6 @@ void menu_loop()
 					showHelpWindow();
 					break;
 				case KEY_RETURN:
-				case '5':
 				case KEY_SELECT:
 					if (currentPanel == &panels[PANEL_LOCAL]) {
 						openLocalPanel();
@@ -802,6 +819,15 @@ void menu_loop()
 					}
 					if (!itemsCount) break;
 					downloadFile();
+					break;
+				case '5':
+					// F5: Launch SofaRun (SR.COM /S) from the current
+					// directory. fhMOD is overwritten in memory, so we
+					// only return here if the load failed.
+					restoreScreen();
+					launchSofaRun();
+					// Fallthrough only on error (SR.COM not found, etc.)
+					dos2_exit(1);
 					break;
 				case KEY_ESC:
 					if (dirMode) {

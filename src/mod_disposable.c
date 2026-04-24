@@ -139,8 +139,14 @@ inline void printHeader()
 		setByteVRAM((uint16_t)((y-1)*80+79), 0x16);  // │ at col 80
 	}
 
+	// Outer frame corners.
+	// ┌ top-left (1,4) is drawn by printTabs (depends on Local tab state).
+	setByteVRAM(3*80 + 79,  0x19);   // ┐ top-right    (80, 4)
+	setByteVRAM(22*80,      0x1b);   // └ bottom-left  (1, 23)
+	setByteVRAM(22*80 + 79, 0x1a);   // ┘ bottom-right (80, 23)
+
 	// Print footer
-	putstrxy(35,24, "F1:Help F2:Search F4:Server RET:Sel         ");
+	putstrxy(35,24, "F1:Help F2:Search F4:Server F5:SofaRun RET:Sel");
 }
 
 void initializeScreen()
