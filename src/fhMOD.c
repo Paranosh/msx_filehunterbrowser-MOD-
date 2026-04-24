@@ -579,10 +579,31 @@ static void printLocalModeNotice(bool networkError)
 }
 
 // --------------------------------------------------------
+// Restore the frame edges and corners after the local browser
+// overlay has exited. showLocalBrowser no longer repaints tabs
+// or the list area, so the caller owns the full restoration.
+static void restoreFrameAfterLocalBrowser(void)
+{
+	uint8_t i;
+	for (i = 0; i < 80; i++) {
+		setByteVRAM(3*80 + i,  0x17);   // row 4 : ─────
+		setByteVRAM(22*80 + i, 0x17);   // row 23: ─────
+	}
+	setByteVRAM(3*80 + 79,  0x19);      // ┐ top-right
+	setByteVRAM(22*80,      0x1a);      // └ bottom-left
+	setByteVRAM(22*80 + 79, 0x1b);      // ┘ bottom-right
+}
+
+// --------------------------------------------------------
 // Shared local-mode wait loop used by both the no-UNAPI path
 // and the network-unreachable path.
 static void runLocalModeLoop(bool networkError)
 {
+	// Force the [L]oc tab to be the active tab — when we fell in here
+	// from a failed network connection, currentPanel may still point to
+	// PANEL_ROM, which would leave ROM painted as active across F3.
+	currentPanel = &panels[PANEL_LOCAL];
+
 	printTabs();
 	printRequestData();
 	printLocalModeNotice(networkError);
@@ -598,6 +619,9 @@ static void runLocalModeLoop(bool networkError)
 
 	// Open F3 automatically at startup
 	showLocalBrowser();
+	restoreFrameAfterLocalBrowser();
+	printTabs();
+	printRequestData();
 
 	// After F3 closes: redraw notice and wait for user input
 	char key;
@@ -608,6 +632,9 @@ static void runLocalModeLoop(bool networkError)
 		key = dos2_toupper(getch());
 		if (key == '3') {
 			showLocalBrowser();
+			restoreFrameAfterLocalBrowser();
+			printTabs();
+			printRequestData();
 		} else if (key == KEY_ESC) {
 			while (varNEWKEY_row7.esc == 0) { ASM_EI; ASM_HALT; }
 			while (kbhit()) getch();
@@ -630,17 +657,9 @@ static bool openLocalPanel(Panel_t *localPanel)
 	itemsCount = 0;
 	resetSelectedLine();
 	bool tabExit = showLocalBrowser();
-	// Restore separator lines that lb_drawWindow overwrote (rows 4 and 23)
-	uint8_t i;
-	for (i=0; i<80; i++) {
-		setByteVRAM(3*80+i,  0x17);  // row 4: ─────
-		setByteVRAM(22*80+i, 0x17);  // row 23: ─────
-	}
-	// Restore outer frame corners overwritten by the fill above.
+	// Restore separator lines and corners overwritten by the overlay.
 	// (┌ top-left is handled by printTabs depending on Local active state.)
-	setByteVRAM(3*80 + 79,  0x19);   // ┐ top-right
-	setByteVRAM(22*80,      0x1a);   // └ bottom-left  (0x1a = └)
-	setByteVRAM(22*80 + 79, 0x1b);   // ┘ bottom-right (0x1b = ┘)
+	restoreFrameAfterLocalBrowser();
 	// Restore screen after local browser exits
 	printTabs();
 	clearListArea();

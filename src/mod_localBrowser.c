@@ -493,13 +493,15 @@ bool showLocalBrowser(void)
 	// Free entry list
 	free(LB_MAX_ENTRIES * sizeof(LBEntry_t));
 
-	// Restore remote browser display
+	// Clear all blink attributes over the window so no black background
+	// bleeds through; caller (openLocalPanel / runLocalModeLoop) takes
+	// care of redrawing tabs, frame edges and list area.
 	fillBlink(LB_WIN_X1, LB_WIN_Y1, LB_WIN_Y2 - LB_WIN_Y1 + 1, 80, false);
 	clearBlinkList();
-	printTabs();
-	printRequestData();
-	printList();
-	setSelectedLine(true);
+
+	// NOTE: do NOT call printList() here — list_start may point to stale
+	// remote-list data from a previous ROM/DSK/CAS panel; on a JP MSX
+	// those bytes render as kana glyphs ("Japanese text flash" bug).
 
 	return tabExit;
 }
