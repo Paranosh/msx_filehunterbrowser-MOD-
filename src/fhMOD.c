@@ -46,10 +46,10 @@ const ReqMSX_t reqMSX[] = {
 };
 
 const Panel_t panels[] = {
-	{"[A:\\]", NULL,                'a', 8,  "[ Local file browser ]"},
-	{"[R]OM", &reqType[REQTYPE_ROM], 'r', 15, "[ ROM files ]"},
-	{"[D]SK", &reqType[REQTYPE_DSK], 'd', 22, "[ Disk images ]"},
-	{"[C]AS", &reqType[REQTYPE_CAS], 'c', 29, "[ CAS tape dumps ]"},
+	{"[L]oc", NULL,                'l', 1,  "[ Local file browser ]"},
+	{"[R]OM", &reqType[REQTYPE_ROM], 'r', 8,  "[ ROM files ]"},
+	{"[D]SK", &reqType[REQTYPE_DSK], 'd', 15, "[ Disk images ]"},
+	{"[C]AS", &reqType[REQTYPE_CAS], 'c', 22, "[ CAS tape dumps ]"},
 	{"", NULL, 0, 0, NULL}
 };
 
@@ -323,7 +323,14 @@ void printTabs()
 		if (panel == currentPanel) {
 			putstrxy(panel->posx, 2, "\x18\x17\x17\x17\x17\x17\x19");
 			putstrxy(panel->posx, 3, "\x16     \x16");
-			putstrxy(panel->posx, 4, "\x1b     \x1a");
+			// Local tab sits at col 1 (the frame edge), so there is no
+			// room for the open-bottom ┘  └ effect; use plain ─ instead.
+			// The ┌ corner at (1,4) is always drawn after the loop below.
+			if (panel == &panels[PANEL_LOCAL]) {
+				putstrxy(panel->posx, 4, "\x17\x17\x17\x17\x17\x17\x17");
+			} else {
+				putstrxy(panel->posx, 4, "\x1b     \x1a");
+			}
 			// Print description
 			_fillVRAM(34, MAX_PANEL_DESCRIPTION, ' ');
 			putstrxy(35, 1, panel->description);
@@ -336,8 +343,9 @@ void printTabs()
 		++panel;
 	}
 
-	// Draw ┌ at outer frame top-left corner (1,4).
-	// No tab occupies col 1 anymore, so this is always just the frame corner.
+	// Always draw ┌ at outer frame top-left corner (1,4).
+	// For Local tab: the row-4 draw above uses ─ so this just overwrites
+	// that ─ with ┌, giving the same visual as when any other tab is active.
 	setByteVRAM(3*80, 0x18);   // ┌
 }
 
@@ -774,7 +782,7 @@ void menu_loop()
 						selectPanel(currentPanel);
 					}
 					break;
-				case 'A':
+				case 'L':
 					newPanel = PANEL_LOCAL; break;
 				case 'R':
 					newPanel = PANEL_ROM; break;

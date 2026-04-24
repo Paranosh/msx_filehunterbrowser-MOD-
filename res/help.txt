@@ -1,7 +1,7 @@
 
                    Usage keys:
 
-                   A/R/D/C ........... Select a panel
+                   L/R/D/C ........... Select a panel
                    TAB ............... Next panel
                    M ................. Change MSX target
                    UP/DOWN ........... Select item
