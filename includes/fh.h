@@ -65,9 +65,13 @@ extern const ReqMSX_t reqMSX[];
 #define PANEL_ROM		1
 #define PANEL_DSK		2
 #define PANEL_CAS		3
-#define PANEL_LAST		PANEL_CAS
+#define PANEL_LOCAL_A	4   /* [A:\] — same local browser, different tab position */
+#define PANEL_LAST		PANEL_LOCAL_A
 extern const Panel_t panels[];
 extern Panel_t *currentPanel;
+
+/* True for any panel that opens the local file browser (no server type) */
+#define IS_LOCAL_PANEL(p)  ((p)->type == NULL)
 
 extern Request_t request;
 enum {

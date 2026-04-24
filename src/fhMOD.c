@@ -46,10 +46,11 @@ const ReqMSX_t reqMSX[] = {
 };
 
 const Panel_t panels[] = {
-	{"[L]oc", NULL,                'l', 1,  "[ Local file browser ]"},
+	{"[L]oc", NULL,                 'l', 1,  "[ Local file browser ]"},
 	{"[R]OM", &reqType[REQTYPE_ROM], 'r', 8,  "[ ROM files ]"},
 	{"[D]SK", &reqType[REQTYPE_DSK], 'd', 15, "[ Disk images ]"},
 	{"[C]AS", &reqType[REQTYPE_CAS], 'c', 22, "[ CAS tape dumps ]"},
+	{"[A:\\]", NULL,                 'a', 29, "[ Local file browser ]"},
 	{"", NULL, 0, 0, NULL}
 };
 
@@ -352,7 +353,7 @@ void printTabs()
 void printRequestData()
 {
 	// Local panel: clear MSX field and search area (nothing to show)
-	if (currentPanel == &panels[PANEL_LOCAL]) {
+	if (IS_LOCAL_PANEL(currentPanel)) {
 		putstrxy(71, 3, "          ");
 		putstrxy(2, 24, "                              ");
 		return;
@@ -617,13 +618,13 @@ static void runLocalModeLoop(bool networkError)
 }
 
 // ========================================================
-// Open the Local panel: draw tabs, enter the local browser,
-// then restore the idle screen (Local tab selected, empty list area).
+// Open a local-browser panel (PANEL_LOCAL or PANEL_LOCAL_A): draw tabs,
+// enter the local browser, then restore the idle screen.
 // Returns true if the browser was closed with TAB (caller should advance
-// to the next panel immediately rather than staying on Local).
-static bool openLocalPanel(void)
+// to the next panel rather than staying on the local panel).
+static bool openLocalPanel(Panel_t *localPanel)
 {
-	currentPanel = &panels[PANEL_LOCAL];
+	currentPanel = localPanel;
 	printTabs();
 	printRequestData();
 	clearListArea();
@@ -659,10 +660,10 @@ void menu_loop()
 
 	// ---- Normal networked mode ----
 	// Initialize the startup panel
-	if (currentPanel == &panels[PANEL_LOCAL]) {
+	if (IS_LOCAL_PANEL(currentPanel)) {
 		// Local tab: open local browser, no network call needed.
 		// If user pressed TAB to exit, advance directly to ROM panel.
-		if (openLocalPanel()) {
+		if (openLocalPanel(currentPanel)) {
 			currentPanel = &panels[PANEL_ROM];
 			selectPanel(currentPanel);
 			if (downloadStatus == DOWNLOAD_LIST_ERROR) {
@@ -757,7 +758,7 @@ void menu_loop()
 					break;
 				case KEY_TAB:
 					if (shiftPressed) {
-						if (currentPanel == &panels[0]) {
+						if (currentPanel == &panels[PANEL_FIRST]) {
 							currentPanel = &panels[PANEL_LAST];
 						} else {
 							--currentPanel;
@@ -768,13 +769,19 @@ void menu_loop()
 							currentPanel = &panels[PANEL_FIRST];
 						}
 					}
-					if (currentPanel == &panels[PANEL_LOCAL]) {
-						if (openLocalPanel()) {
-							// User pressed TAB to exit: advance past Local
+					if (IS_LOCAL_PANEL(currentPanel)) {
+						if (openLocalPanel(currentPanel)) {
+							// User pressed TAB to exit: skip to next non-local panel
 							if (shiftPressed) {
-								currentPanel = &panels[PANEL_LAST];
+								do {
+									if (currentPanel == &panels[PANEL_FIRST]) currentPanel = &panels[PANEL_LAST];
+									else --currentPanel;
+								} while (IS_LOCAL_PANEL(currentPanel));
 							} else {
-								currentPanel = &panels[PANEL_ROM];
+								do {
+									++currentPanel;
+									if (currentPanel->name[0] == 0) currentPanel = &panels[PANEL_FIRST];
+								} while (IS_LOCAL_PANEL(currentPanel));
 							}
 							selectPanel(currentPanel);
 						}
@@ -784,6 +791,8 @@ void menu_loop()
 					break;
 				case 'L':
 					newPanel = PANEL_LOCAL; break;
+				case 'A':
+					newPanel = PANEL_LOCAL_A; break;
 				case 'R':
 					newPanel = PANEL_ROM; break;
 				case 'D':
@@ -791,23 +800,23 @@ void menu_loop()
 				case 'C':
 					newPanel = PANEL_CAS; break;
 					case '/':
-					if (currentPanel == &panels[PANEL_LOCAL]) break;
+					if (IS_LOCAL_PANEL(currentPanel)) break;
 					dirMode = true;
 					currentDirPath[0] = '\0';
 					printRequestData();
 					updateList();
 					break;
 				case 'M':
-					if (currentPanel == &panels[PANEL_LOCAL]) break;
+					if (IS_LOCAL_PANEL(currentPanel)) break;
 					nextTargetMSX();
 					break;
 				case '2':
-					if (currentPanel == &panels[PANEL_LOCAL]) break;
+					if (IS_LOCAL_PANEL(currentPanel)) break;
 					changeSearchString();
 					break;
 				case '4':
 					if (showServerBrowser()) {
-						if (currentPanel != &panels[PANEL_LOCAL]) {
+						if (!IS_LOCAL_PANEL(currentPanel)) {
 							selectPanel(currentPanel);
 						}
 					}
@@ -817,8 +826,8 @@ void menu_loop()
 					break;
 				case KEY_RETURN:
 				case KEY_SELECT:
-					if (currentPanel == &panels[PANEL_LOCAL]) {
-						openLocalPanel();
+					if (IS_LOCAL_PANEL(currentPanel)) {
+						openLocalPanel(currentPanel);
 						break;
 					}
 					if (!itemsCount) break;
@@ -863,10 +872,10 @@ void menu_loop()
 			}
 			if (newPanel != PANEL_NONE) {
 				if (currentPanel != &panels[newPanel]) {
-					if (newPanel == PANEL_LOCAL) {
-						openLocalPanel();
+					currentPanel = &panels[newPanel];
+					if (IS_LOCAL_PANEL(currentPanel)) {
+						openLocalPanel(currentPanel);
 					} else {
-						currentPanel = &panels[newPanel];
 						selectPanel(currentPanel);
 					}
 				}
