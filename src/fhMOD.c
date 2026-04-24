@@ -50,7 +50,6 @@ const Panel_t panels[] = {
 	{"[R]OM", &reqType[REQTYPE_ROM], 'r', 8,  "[ ROM files ]"},
 	{"[D]SK", &reqType[REQTYPE_DSK], 'd', 15, "[ Disk images ]"},
 	{"[C]AS", &reqType[REQTYPE_CAS], 'c', 22, "[ CAS tape dumps ]"},
-	{"[A:\\]", NULL,                 'a', 29, "[ Local file browser ]"},
 	{"", NULL, 0, 0, NULL}
 };
 
@@ -618,7 +617,7 @@ static void runLocalModeLoop(bool networkError)
 }
 
 // ========================================================
-// Open a local-browser panel (PANEL_LOCAL or PANEL_LOCAL_A): draw tabs,
+// Open the local-browser panel (PANEL_LOCAL): draw tabs,
 // enter the local browser, then restore the idle screen.
 // Returns true if the browser was closed with TAB (caller should advance
 // to the next panel rather than staying on the local panel).
@@ -791,8 +790,6 @@ void menu_loop()
 					break;
 				case 'L':
 					newPanel = PANEL_LOCAL; break;
-				case 'A':
-					newPanel = PANEL_LOCAL_A; break;
 				case 'R':
 					newPanel = PANEL_ROM; break;
 				case 'D':

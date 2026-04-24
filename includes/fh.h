@@ -65,8 +65,7 @@ extern const ReqMSX_t reqMSX[];
 #define PANEL_ROM		1
 #define PANEL_DSK		2
 #define PANEL_CAS		3
-#define PANEL_LOCAL_A	4   /* [A:\] — same local browser, different tab position */
-#define PANEL_LAST		PANEL_LOCAL_A
+#define PANEL_LAST		PANEL_CAS
 extern const Panel_t panels[];
 extern Panel_t *currentPanel;
 

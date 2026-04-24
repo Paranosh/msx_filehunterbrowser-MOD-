@@ -120,24 +120,17 @@ static void lb_drawWindow(void)
 		_fillVRAM((uint16_t)((y - 1) * 80), 80, ' ');
 	}
 
-	// Only blink the inner content columns (LB_LIST_X..LB_WIN_X2-1)
-	// so the │ border chars at col 1 and col 80 stay white-on-dark-blue.
-	// This prevents the selection bar from visually overflowing the frame.
-	fillBlink(LB_LIST_X, LB_WIN_Y1, LB_WIN_Y2 - LB_WIN_Y1 + 1,
-	          LB_WIN_X2 - LB_LIST_X, true);
+	// No blink/black background — keep default blue background like the
+	// other panels (ROM/DSK/CAS).
+	fillBlink(LB_WIN_X1, LB_WIN_Y1, LB_WIN_Y2 - LB_WIN_Y1 + 1, 80, false);
 	drawFrame(LB_WIN_X1, LB_WIN_Y1, LB_WIN_X2, LB_WIN_Y2);
 	putstrxy(3, LB_WIN_Y2, " UP/DOWN:Navigate  ENTER:Open/Launch  ESC:Back ");
-}
 
-// ========================================================
-// Print current path in the window title bar
-static void lb_printTitle(void)
-{
-	char path[64];
-	dos2_getCurrentDirectory(0, path);
-	csprintf(buff, " Local: \\%s ", path);
-	if (strlen(buff) > 74) buff[74] = '\0';
-	putstrxy(3, LB_WIN_Y1, buff);
+	// Replace the ┌ top-left corner with │ + blank spaces under the
+	// "[L]oc" tab text (5 chars), so the frame "opens" beneath the tab
+	// like the other tabs do. Col 1 = │, cols 2..6 = spaces, col 7 = ─.
+	setByteVRAM((uint16_t)((LB_WIN_Y1 - 1) * 80), 0x16);     // │
+	_fillVRAM((uint16_t)((LB_WIN_Y1 - 1) * 80 + 1), 5, ' '); // blank under "[L]oc"
 }
 
 // ========================================================
@@ -163,6 +156,7 @@ static uint8_t lb_scanDir(LBEntry_t *entries)
 		do {
 			if (!(ffblk.attribs & ATTR_DIR)) continue;
 			if (ffblk.filename[0] == '.') continue;
+			if (ffblk.filename[0] == '\0') continue;  // skip empty/volume entries
 			if (count >= LB_MAX_ENTRIES) break;
 			strncpy(entries[count].name, ffblk.filename, LB_NAME_MAXLEN);
 			entries[count].name[LB_NAME_MAXLEN] = '\0';
@@ -176,6 +170,7 @@ static uint8_t lb_scanDir(LBEntry_t *entries)
 	if (dos2_findfirst("*.*", &ffblk, 0) == 0) {
 		do {
 			if (ffblk.attribs & (ATTR_DIR | 0x08)) continue;
+			if (ffblk.filename[0] == '\0') continue;  // skip empty/volume entries
 			if (count >= LB_MAX_ENTRIES) break;
 
 			dot = strrchr(ffblk.filename, '.');
@@ -415,7 +410,6 @@ bool showLocalBrowser(void)
 	topLine = 0;
 	curLine = 0;
 	count   = lb_scanDir(entries);
-	lb_printTitle();
 	lb_printList(entries, count, topLine, curLine);
 
 	while (!done) {
@@ -460,8 +454,7 @@ bool showLocalBrowser(void)
 					topLine = 0;
 					curLine = 0;
 					count   = lb_scanDir(entries);
-					lb_printTitle();
-					lb_printList(entries, count, topLine, curLine);
+									lb_printList(entries, count, topLine, curLine);
 				}
 			}
 
@@ -477,8 +470,7 @@ bool showLocalBrowser(void)
 				topLine = 0;
 				curLine = 0;
 				count   = lb_scanDir(entries);
-				lb_printTitle();
-				lb_printList(entries, count, topLine, curLine);
+							lb_printList(entries, count, topLine, curLine);
 			} else {
 				done = true;		// Already at root — close browser
 			}
