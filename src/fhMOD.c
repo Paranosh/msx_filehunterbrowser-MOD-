@@ -323,7 +323,14 @@ void printTabs()
 		if (panel == currentPanel) {
 			putstrxy(panel->posx, 2, "\x18\x17\x17\x17\x17\x17\x19");
 			putstrxy(panel->posx, 3, "\x16     \x16");
-			putstrxy(panel->posx, 4, "\x1b     \x1a");
+			// Local tab sits at col 1 (the frame edge), so there is no
+			// room for the open-bottom ┘  └ effect; use plain ─ instead.
+			// The ┌ corner at (1,4) is always drawn after the loop below.
+			if (panel == &panels[PANEL_LOCAL]) {
+				putstrxy(panel->posx, 4, "\x17\x17\x17\x17\x17\x17\x17");
+			} else {
+				putstrxy(panel->posx, 4, "\x1b     \x1a");
+			}
 			// Print description
 			_fillVRAM(34, MAX_PANEL_DESCRIPTION, ' ');
 			putstrxy(35, 1, panel->description);
@@ -336,13 +343,10 @@ void printTabs()
 		++panel;
 	}
 
-	// Outer frame top-left corner (1, 4):
-	//   - Local tab active : (1,4) is └ drawn by the tab (tab-end corner)
-	//   - Local tab inactive: tab draws ─ at (1,4); replace with ┌ so the
-	//     outer frame closes cleanly at the top-left.
-	if (currentPanel != &panels[PANEL_LOCAL]) {
-		setByteVRAM(3*80, 0x18);   // ┌
-	}
+	// Always draw ┌ at outer frame top-left corner (1,4).
+	// For Local tab: the row-4 draw above uses ─ so this just overwrites
+	// that ─ with ┌, giving the same visual as when any other tab is active.
+	setByteVRAM(3*80, 0x18);   // ┌
 }
 
 void printRequestData()
@@ -635,8 +639,8 @@ static bool openLocalPanel(void)
 	// Restore outer frame corners overwritten by the fill above.
 	// (┌ top-left is handled by printTabs depending on Local active state.)
 	setByteVRAM(3*80 + 79,  0x19);   // ┐ top-right
-	setByteVRAM(22*80,      0x1b);   // └ bottom-left
-	setByteVRAM(22*80 + 79, 0x1a);   // ┘ bottom-right
+	setByteVRAM(22*80,      0x1a);   // └ bottom-left  (0x1a = └)
+	setByteVRAM(22*80 + 79, 0x1b);   // ┘ bottom-right (0x1b = ┘)
 	// Restore screen after local browser exits
 	printTabs();
 	clearListArea();
