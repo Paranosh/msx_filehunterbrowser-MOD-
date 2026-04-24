@@ -825,9 +825,10 @@ void menu_loop()
 					downloadFile();
 					break;
 				case '5':
-					// F5: Launch SofaRun (SR.COM /S) from the current
-					// directory. fhMOD is overwritten in memory, so we
-					// only return here if the load failed.
+					// F5: Launch SofaRun (SR.COM /S).
+					// Searches current directory then PATH.
+					// fhMOD is overwritten in memory — we only return
+					// here if SR.COM was not found or failed to load.
 					restoreScreen();
 					launchSofaRun();
 					// Fallthrough only on error (SR.COM not found, etc.)
