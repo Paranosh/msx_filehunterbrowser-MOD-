@@ -850,13 +850,12 @@ void menu_loop()
 					downloadFile();
 					break;
 				case '5':
-					// F5: Launch SofaRun (SR.COM /S).
-					// Searches current directory then PATH.
+					// F5: Launch OCMINFO.COM (resolved via PATH).
 					// fhMOD is overwritten in memory — we only return
-					// here if SR.COM was not found or failed to load.
+					// here if OCMINFO.COM was not found or failed.
 					restoreScreen();
-					launchSofaRun();
-					// Fallthrough only on error (SR.COM not found, etc.)
+					launchOcmInfo();
+					// Fallthrough only on error.
 					dos2_exit(1);
 					break;
 				case KEY_ESC:

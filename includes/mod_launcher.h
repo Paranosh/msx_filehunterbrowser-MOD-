@@ -6,10 +6,10 @@
 */
 #pragma once
 
-// Launch SofaRun (SR.COM /S) from the current directory.
+// Launch OCMINFO.COM (resolved via DOS PATH).
 // Overwrites fhMOD in memory — never returns on success.
 // Expected usage:
 //     restoreScreen();
-//     launchSofaRun();
+//     launchOcmInfo();
 //     dos2_exit(1);   // only reached on load error
-void launchSofaRun(void);
+void launchOcmInfo(void);

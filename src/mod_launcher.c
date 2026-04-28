@@ -12,12 +12,12 @@
 #include "fh.h"
 
 /* ------------------------------------------------------------ */
-/* launchSofaRun()                                              */
+/* launchOcmInfo()                                              */
 /*                                                              */
-/*   Inject "SR.COM /S" into the BIOS keyboard buffer and exit */
-/*   fhMOD.com. COMMAND.COM will then pick it up from the       */
-/*   buffer and execute it, letting MSX-DOS resolve SR.COM via */
-/*   its own PATH lookup (far more reliable than our own).     */
+/*   Inject "OCMINFO.COM" into the BIOS keyboard buffer and    */
+/*   exit fhMOD.com. COMMAND.COM will then pick it up from the */
+/*   buffer and execute it, letting MSX-DOS resolve OCMINFO.COM */
+/*   via its own PATH lookup.                                  */
 /*                                                              */
 /*   The caller (F5 handler) is expected to restoreScreen()     */
 /*   before calling this. Never returns on success.            */
@@ -47,8 +47,8 @@ static void injectCommand(const char *cmd)
 	varPUTPNT = putpnt;
 }
 
-void launchSofaRun(void)
+void launchOcmInfo(void)
 {
-	injectCommand("SR.COM /S");
+	injectCommand("OCMINFO.COM");
 	dos2_exit(0);
 }

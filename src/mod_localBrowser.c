@@ -512,21 +512,20 @@ bool showLocalBrowser(void)
 			done    = true;
 
 		} else if (key == '5') {
-			// F5: Launch SofaRun (SR.COM /S) directly, exactly like
-			// the network browser. launchSofaRun() injects "SR.COM /S"
+			// F5: Launch OCMINFO.COM (resolved via PATH), same as in
+			// the network browser. launchOcmInfo() injects the command
 			// into the BIOS keyboard buffer and exits so COMMAND.COM
 			// picks it up. Only returns here on error.
 			//
-			// Restore working directory first so SR.COM resolves any
-			// relative paths from the user's original CWD, not from
-			// wherever the user was browsing.
+			// Restore working directory first so the user's original
+			// CWD is in effect when OCMINFO.COM runs.
 			buff[0] = '\\';
 			strcpy(buff + 1, savedPath);
 			dos2_setCurrentDirectory(buff);
 			free(LB_MAX_ENTRIES * sizeof(LBEntry_t));
 			restoreScreen();
-			launchSofaRun();
-			dos2_exit(1);	// only reached if SR.COM not found
+			launchOcmInfo();
+			dos2_exit(1);	// only reached if OCMINFO.COM not found
 		}
 	}
 
