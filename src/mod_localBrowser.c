@@ -349,6 +349,44 @@ static uint8_t lb_detectROMMapper(const char *filename)
 	return 3;                          //  > 128 KB : ASCII8  /R3
 }
 
+// Path of the canonical LOADCAX binary. Must live alongside fhMOD.com.
+#define LOADCAX_SRC_PATH	"\\UTILS\\LOADCAX"
+#define LOADCAX_DEST_NAME	"LOADCAX"
+// Matches the BUFF_SIZE used to malloc 'buff' in fhMOD.c. Keep in sync.
+#define LB_BUFF_SIZE		200
+
+// Copy A:\UTILS\LOADCAX into the current directory. LOADCAX (~1.6 KB)
+// must sit next to the .CAS or it errors out with "cas file not found
+// or broken", so we drop a fresh copy on every launch. Re-uses 'buff'
+// (BUFF_SIZE = 200) as the IO buffer; LOADCAX needs ~9 round trips.
+static bool lb_copyLoadcax(void)
+{
+	FILEH    fhSrc;
+	FILEH    fhDst;
+	int16_t  n;
+
+	dos2_remove(LOADCAX_DEST_NAME);
+
+	fhSrc = dos2_fopen(LOADCAX_SRC_PATH, O_RDONLY);
+	if (fhSrc >= ERR_FIRST) return false;
+
+	fhDst = dos2_fcreate(LOADCAX_DEST_NAME, O_WRONLY, ATTR_ARCHIVE);
+	if (fhDst >= ERR_FIRST) {
+		dos2_fclose(fhSrc);
+		return false;
+	}
+
+	for (;;) {
+		n = (int16_t)dos2_fread(buff, LB_BUFF_SIZE, fhSrc);
+		if (n <= 0) break;
+		dos2_fwrite(buff, (uint16_t)n, fhDst);
+	}
+
+	dos2_fclose(fhDst);
+	dos2_fclose(fhSrc);
+	return true;
+}
+
 // Build a stub FHCAS.BAS in the current directory and inject the
 // command "BASIC FHCAS.BAS" so MSX BASIC autoruns it on next boot.
 //
@@ -361,14 +399,11 @@ static uint8_t lb_detectROMMapper(const char *filename)
 //
 //     BLOAD"LOADCAX",R'<basename>
 //
-// where <basename> is the .CAS filename without the extension. So we
-// drop a one-line BASIC program in the CAS's directory:
-//
-//     10 BLOAD"\UTILS\LOADCAX",R'<basename>
-//
-// and tell COMMAND.COM (via the BIOS keyboard buffer) to run BASIC on
-// it. LOADCAX lives at A:\UTILS\LOADCAX (same place as fhMOD itself).
-// Returns false on file-create error so the caller can beep + stay.
+// where <basename> is the .CAS filename without the extension. LOADCAX
+// requires that BOTH the loader binary AND the .CAS sit in the SAME
+// directory (it opens "<basename>.CAS" relative to CWD), so before
+// writing the stub we copy LOADCAX from A:\UTILS into the CAS's dir.
+// Returns false on any file-IO error so the caller can beep + stay.
 static bool lb_buildCasStub(const char *casFilename)
 {
 	char    base[16];
@@ -382,15 +417,18 @@ static bool lb_buildCasStub(const char *casFilename)
 	memcpy(base, casFilename, baseLen);
 	base[baseLen] = '\0';
 
-	// Drop any leftover stub from a previous launch so the create
-	// always succeeds (dos2_fcreate refuses to overwrite).
+	// 1) Make sure LOADCAX is right next to the .CAS.
+	if (!lb_copyLoadcax()) return false;
+
+	// 2) Drop any leftover stub from a previous launch so the create
+	//    always succeeds (dos2_fcreate refuses to overwrite).
 	dos2_remove("FHCAS.BAS");
 
 	fh = dos2_fcreate("FHCAS.BAS", O_WRONLY, ATTR_ARCHIVE);
 	if (fh >= ERR_FIRST) return false;
 
 	// MSX BASIC accepts ASCII source files. CR+LF line ending.
-	csprintf(buff, "10 BLOAD\"\\UTILS\\LOADCAX\",R'%s\r\n", base);
+	csprintf(buff, "10 BLOAD\"LOADCAX\",R'%s\r\n", base);
 	len = (uint16_t)strlen(buff);
 	dos2_fwrite(buff, len, fh);
 	dos2_fclose(fh);
