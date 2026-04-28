@@ -14,6 +14,7 @@
 #include "utils.h"
 #include "fh.h"
 #include "mod_localBrowser.h"
+#include "mod_launcher.h"
 
 
 // ========================================================
@@ -102,11 +103,13 @@ static void lb_injectCommand(const char *cmd)
 // is restored so the user sees it while the launched program is loading.
 static void lb_execCommand(const char *cmd, const char *launchMsg)
 {
+	(void)launchMsg;	// no longer printed: hidden by the splash
 	lb_injectCommand(cmd);
-	restoreScreen();
-	if (launchMsg) {
-		cputs(launchMsg);
-	}
+	// paintSplash() does the work of restoreScreen() and additionally
+	// paints a centred "fhMOD - Loading..." banner with the cursor
+	// hidden, so the COMMAND.COM prompt + echoed command don't show
+	// while SR.COM / SROM / SRI is loading.
+	paintSplash();
 	dos2_exit(0);
 }
 
@@ -482,6 +485,24 @@ bool showLocalBrowser(void)
 			// to the next panel (so a single TAB press cycles panels).
 			tabExit = true;
 			done    = true;
+
+		} else if (key == '5') {
+			// F5: Launch SofaRun (SR.COM /S) directly, exactly like
+			// the network browser. paintSplash() restores the screen
+			// and paints a "Loading..." banner; launchSofaRun() injects
+			// "SR.COM /S" into the BIOS keyboard buffer and exits so
+			// COMMAND.COM picks it up. Only returns here on error.
+			//
+			// Restore working directory first so SR.COM resolves any
+			// relative paths from the user's original CWD, not from
+			// wherever the user was browsing.
+			buff[0] = '\\';
+			strcpy(buff + 1, savedPath);
+			dos2_setCurrentDirectory(buff);
+			free(LB_MAX_ENTRIES * sizeof(LBEntry_t));
+			paintSplash();
+			launchSofaRun();
+			dos2_exit(1);	// only reached if SR.COM not found
 		}
 	}
 
