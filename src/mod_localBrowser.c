@@ -23,7 +23,12 @@
 #define LB_WIN_X2		80
 #define LB_WIN_Y2		(PANEL_LASTY + 1)		// row 23 (1-based)
 #define LB_LIST_X		2
-#define LB_LIST_Y		(LB_WIN_Y1 + 2)			// first list entry row
+// First list entry row: LB_WIN_Y1+1 sits right under the frame top (row 5),
+// matching the layout of the ROM/DSK/CAS network panels (PANEL_FIRSTY=5).
+// Earlier this was LB_WIN_Y1+2 which left an empty row 5 between the frame
+// and the first item — the prior "Japanese flash" patch only stopped the
+// stale-glyph rendering on that row, the blank gap stayed.
+#define LB_LIST_Y		(LB_WIN_Y1 + 1)
 #define LB_LIST_ROWS	(LB_WIN_Y2 - LB_LIST_Y - 1)	// visible rows for entries
 
 #define LB_MAX_ENTRIES	30				// max entries per directory scan
