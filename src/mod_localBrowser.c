@@ -349,10 +349,60 @@ static uint8_t lb_detectROMMapper(const char *filename)
 	return 3;                          //  > 128 KB : ASCII8  /R3
 }
 
+// Build a stub FHCAS.BAS in the current directory and inject the
+// command "BASIC FHCAS.BAS" so MSX BASIC autoruns it on next boot.
+//
+// Why this dance?  A .CAS file isn't an executable: it is a raw dump
+// of cassette bytes that only MSX BIOS/BASIC's tape routines know how
+// to feed to a program. LOADCAX (k0gaMSX/legacy/APPS/CASUTILS) is a
+// BASIC binary that hooks the cassette BIOS routines and replays the
+// bytes from a .CAS file when BASIC executes its standard CLOAD/RUN
+// commands. The README says verbatim:
+//
+//     BLOAD"LOADCAX",R'<basename>
+//
+// where <basename> is the .CAS filename without the extension. So we
+// drop a one-line BASIC program in the CAS's directory:
+//
+//     10 BLOAD"\UTILS\LOADCAX",R'<basename>
+//
+// and tell COMMAND.COM (via the BIOS keyboard buffer) to run BASIC on
+// it. LOADCAX lives at A:\UTILS\LOADCAX (same place as fhMOD itself).
+// Returns false on file-create error so the caller can beep + stay.
+static bool lb_buildCasStub(const char *casFilename)
+{
+	char    base[16];
+	uint8_t baseLen;
+	FILEH   fh;
+	uint16_t len;
+	const char *dot = strrchr(casFilename, '.');
+
+	baseLen = (uint8_t)(dot ? (uint8_t)(dot - casFilename) : strlen(casFilename));
+	if (baseLen >= sizeof(base)) baseLen = sizeof(base) - 1;
+	memcpy(base, casFilename, baseLen);
+	base[baseLen] = '\0';
+
+	// Drop any leftover stub from a previous launch so the create
+	// always succeeds (dos2_fcreate refuses to overwrite).
+	dos2_remove("FHCAS.BAS");
+
+	fh = dos2_fcreate("FHCAS.BAS", O_WRONLY, ATTR_ARCHIVE);
+	if (fh >= ERR_FIRST) return false;
+
+	// MSX BASIC accepts ASCII source files. CR+LF line ending.
+	csprintf(buff, "10 BLOAD\"\\UTILS\\LOADCAX\",R'%s\r\n", base);
+	len = (uint16_t)strlen(buff);
+	dos2_fwrite(buff, len, fh);
+	dos2_fclose(fh);
+	return true;
+}
+
 // Activate selected entry:
 //   directories  -> chdir + return 0 (rescan)
 //   .ROM         -> auto-detect mapper, inject "SROM [/Rx] <file>" + exit
 //   .DSK         -> inject "SRI <file>" and exit fhMOD.com  (SofaRunIt)
+//   .CAS         -> write FHCAS.BAS stub in CWD then inject "BASIC FHCAS.BAS"
+//                   so BASIC autoruns LOADCAX on the cassette image
 //   .COM/.BAS    -> inject "<file>"     and exit fhMOD.com
 //   other        -> beep, return 0
 // Returns 1 if local browser should close (file action done).
@@ -384,6 +434,16 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 		// SofaRunIt has no quiet-mode flag
 		csprintf(buff, "SRI %s", entry->name);
 		lb_execCommand(buff, lb_sofaRunMsg);
+		// never reached
+
+	} else if (strcmp(dot, ".CAS") == 0) {
+		// Write FHCAS.BAS stub next to the .CAS, then hand off to BASIC
+		if (!lb_buildCasStub(entry->name)) {
+			putchar('\x07');
+			return 0;
+		}
+		csprintf(buff, "BASIC FHCAS.BAS");
+		lb_execCommand(buff, NULL);
 		// never reached
 
 	} else if (strcmp(dot, ".COM") == 0 ||
