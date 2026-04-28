@@ -482,6 +482,8 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 	if (!dot) { putchar('\x07'); return 0; }
 
 	if (strcmp(dot, ".ROM") == 0) {
+		// Show feedback before the mapper-detection IO + DOS handoff.
+		lb_showLoadingBox();
 		mapper = lb_detectROMMapper(entry->name);
 		if (mapper) {
 			csprintf(buff, "SROM /R%u %s", (uint16_t)mapper, entry->name);
@@ -492,6 +494,7 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 		// never reached (dos2_exit called inside)
 
 	} else if (strcmp(dot, ".DSK") == 0) {
+		lb_showLoadingBox();
 		// SofaRunIt has no quiet-mode flag
 		csprintf(buff, "SRI %s", entry->name);
 		lb_execCommand(buff, lb_sofaRunMsg);
