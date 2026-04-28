@@ -146,7 +146,7 @@ inline void printHeader()
 	setByteVRAM(22*80 + 79, 0x1b);   // ┘ bottom-right (80, 23) - 0x1b = ┘
 
 	// Print footer
-	putstrxy(35,24, "F1:Help F2:Search F4:Server F5:SofaRun RET:Sel");
+	putstrxy(35,24, "F1:Help F2:Search F4:Server F5:OCMINFO RET:Sel");
 }
 
 void initializeScreen()

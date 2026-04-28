@@ -9,7 +9,7 @@
                    Shift+RIGHT/LEFT .. Begin/End of the list
                    F1 ................ Help
                    F2 ................ Search by text
-                   F5 ................ Launch SofaRun (SR.COM)
+                   F5 ................ Launch OCMINFO.COM
                    ENTER ............. Select / Download file
                    ESC ............... Back / Exit
                    / ................. Browse folders from root
