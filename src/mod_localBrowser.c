@@ -355,17 +355,19 @@ static uint8_t lb_detectROMMapper(const char *filename)
 // Matches the BUFF_SIZE used to malloc 'buff' in fhMOD.c. Keep in sync.
 #define LB_BUFF_SIZE		200
 
-// Copy A:\UTILS\LOADCAX into the current directory. LOADCAX (~1.6 KB)
-// must sit next to the .CAS or it errors out with "cas file not found
-// or broken", so we drop a fresh copy on every launch. Re-uses 'buff'
-// (BUFF_SIZE = 200) as the IO buffer; LOADCAX needs ~9 round trips.
+// Copy A:\UTILS\LOADCAX into the current directory if it isn't already
+// there. LOADCAX (~1.6 KB) must sit next to the .CAS or it errors out
+// with "cas file not found or broken". When a previous launch already
+// dropped a copy in this directory we skip the IO entirely. Re-uses
+// 'buff' (200 B) as the IO buffer; a fresh copy is ~9 round trips.
 static bool lb_copyLoadcax(void)
 {
 	FILEH    fhSrc;
 	FILEH    fhDst;
 	int16_t  n;
 
-	dos2_remove(LOADCAX_DEST_NAME);
+	// Reuse an existing copy if one is already next to the .CAS.
+	if (dos2_fileexists(LOADCAX_DEST_NAME)) return true;
 
 	fhSrc = dos2_fopen(LOADCAX_SRC_PATH, O_RDONLY);
 	if (fhSrc >= ERR_FIRST) return false;
@@ -385,6 +387,20 @@ static bool lb_copyLoadcax(void)
 	dos2_fclose(fhDst);
 	dos2_fclose(fhSrc);
 	return true;
+}
+
+// Paint a centred "Loading game..." box on top of the local browser so
+// the user gets immediate feedback while we copy LOADCAX, write the
+// stub, and queue the BASIC command. Drawn at row 10 (28 chars wide).
+static void lb_showLoadingBox(void)
+{
+	const uint8_t x = 26;	// 80-col centred: (80-28)/2 + 1
+	const uint8_t y = 10;
+	putstrxy(x, y,     "+--------------------------+");
+	putstrxy(x, y + 1, "|                          |");
+	putstrxy(x, y + 2, "|   Loading game...        |");
+	putstrxy(x, y + 3, "|                          |");
+	putstrxy(x, y + 4, "+--------------------------+");
 }
 
 // Build a stub FHCAS.BAS in the current directory and inject the
@@ -475,7 +491,9 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 		// never reached
 
 	} else if (strcmp(dot, ".CAS") == 0) {
-		// Write FHCAS.BAS stub next to the .CAS, then hand off to BASIC
+		// Show feedback BEFORE we start IO — the LOADCAX copy + stub
+		// write + DOS dance can take a noticeable second on slow media.
+		lb_showLoadingBox();
 		if (!lb_buildCasStub(entry->name)) {
 			putchar('\x07');
 			return 0;
