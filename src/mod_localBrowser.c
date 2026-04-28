@@ -391,16 +391,23 @@ static bool lb_copyLoadcax(void)
 
 // Paint a centred "Loading game..." box on top of the local browser so
 // the user gets immediate feedback while we copy LOADCAX, write the
-// stub, and queue the BASIC command. Drawn at row 10 (28 chars wide).
+// stub, and queue the BASIC command. Uses the same line-drawing chars
+// as the rest of the app via drawFrame().
 static void lb_showLoadingBox(void)
 {
-	const uint8_t x = 26;	// 80-col centred: (80-28)/2 + 1
-	const uint8_t y = 10;
-	putstrxy(x, y,     "+--------------------------+");
-	putstrxy(x, y + 1, "|                          |");
-	putstrxy(x, y + 2, "|   Loading game...        |");
-	putstrxy(x, y + 3, "|                          |");
-	putstrxy(x, y + 4, "+--------------------------+");
+	const uint8_t x1 = 26;	// (80 - 28) / 2 + 1
+	const uint8_t y1 = 10;
+	const uint8_t x2 = 53;	// x1 + 27
+	const uint8_t y2 = 14;
+	uint8_t y;
+
+	// Wipe the inside of the box (rows y1+1..y2-1, cols x1..x2-1).
+	for (y = y1 + 1; y < y2; y++) {
+		_fillVRAM((uint16_t)((y - 1) * 80 + (x1 - 1)),
+		          (uint16_t)(x2 - x1 + 1), ' ');
+	}
+	drawFrame(x1, y1, x2, y2);
+	putstrxy(x1 + 8, y1 + 2, "Loading game...");
 }
 
 // Build a stub FHCAS.BAS in the current directory and inject the
