@@ -854,11 +854,7 @@ void menu_loop()
 					// Searches current directory then PATH.
 					// fhMOD is overwritten in memory — we only return
 					// here if SR.COM was not found or failed to load.
-					// paintSplash() restores the screen AND paints a
-					// "Loading..." splash (cursor hidden) so the user
-					// doesn't see the COMMAND.COM prompt + echoed
-					// command while SR.COM loads.
-					paintSplash();
+					restoreScreen();
 					launchSofaRun();
 					// Fallthrough only on error (SR.COM not found, etc.)
 					dos2_exit(1);
