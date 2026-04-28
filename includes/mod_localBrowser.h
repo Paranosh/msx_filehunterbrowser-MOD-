@@ -6,6 +6,14 @@
 */
 #pragma once
 
-// Returns true if the browser was closed by pressing TAB
-// (caller should advance to the next panel).
-bool showLocalBrowser(void);
+#include <stdint.h>
+
+// showLocalBrowser() exit codes — returned to the caller so it can decide
+// what panel to activate next.
+#define LB_EXIT_CLOSE	0	// ESC at root (or alloc fail) — stay on local
+#define LB_EXIT_TAB		1	// TAB pressed — advance to next panel
+#define LB_EXIT_ROM		2	// R pressed — jump to ROM panel
+#define LB_EXIT_DSK		3	// D pressed — jump to DSK panel
+#define LB_EXIT_CAS		4	// C pressed — jump to CAS panel
+
+uint8_t showLocalBrowser(void);

@@ -71,6 +71,7 @@ static ERRB lb_findnext(FFBLK *ffblk) __naked __sdcccall(1)
 // ========================================================
 extern void clearBlinkList();
 extern void printTabs();
+extern void showHelpWindow();
 // restoreScreen() is declared in fh.h (already included)
 
 // ========================================================
@@ -398,15 +399,16 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 }
 
 // ========================================================
-// Entry point: show the local file browser overlay
-bool showLocalBrowser(void)
+// Entry point: show the local file browser overlay.
+// Returns one of LB_EXIT_* — the caller decides what panel to switch to.
+uint8_t showLocalBrowser(void)
 {
 	LBEntry_t *entries;
 	uint8_t count;
 	uint8_t topLine;
 	uint8_t curLine;
 	bool done;
-	bool tabExit;
+	uint8_t exitCode;
 	char key;
 	uint8_t action;
 	char savedPath[64];
@@ -429,17 +431,17 @@ bool showLocalBrowser(void)
 		buff[0] = '\\';
 		strcpy(buff + 1, savedPath);
 		dos2_setCurrentDirectory(buff);
-		return;
+		return LB_EXIT_CLOSE;
 	}
 
 	setSelectedLine(false);
 	lb_drawWindow();
 
-	done    = false;
-	tabExit = false;
-	topLine = 0;
-	curLine = 0;
-	count   = lb_scanDir(entries);
+	done     = false;
+	exitCode = LB_EXIT_CLOSE;
+	topLine  = 0;
+	curLine  = 0;
+	count    = lb_scanDir(entries);
 	lb_printList(entries, count, topLine, curLine);
 
 	while (!done) {
@@ -508,8 +510,28 @@ bool showLocalBrowser(void)
 		} else if (key == KEY_TAB) {
 			// TAB closes the browser and signals the caller to advance
 			// to the next panel (so a single TAB press cycles panels).
-			tabExit = true;
-			done    = true;
+			exitCode = LB_EXIT_TAB;
+			done     = true;
+
+		} else if (key == 'R') {
+			exitCode = LB_EXIT_ROM;
+			done     = true;
+
+		} else if (key == 'D') {
+			exitCode = LB_EXIT_DSK;
+			done     = true;
+
+		} else if (key == 'C') {
+			exitCode = LB_EXIT_CAS;
+			done     = true;
+
+		} else if (key == '1') {
+			// F1: show help. showHelpWindow() draws over the screen and
+			// on exit calls printList() (the network panel renderer),
+			// so we redraw our overlay on top to clean that up.
+			showHelpWindow();
+			lb_drawWindow();
+			lb_printList(entries, count, topLine, curLine);
 
 		} else if (key == '5') {
 			// F5: Launch OCMINFO.COM (resolved via PATH), same as in
@@ -547,5 +569,5 @@ bool showLocalBrowser(void)
 	// remote-list data from a previous ROM/DSK/CAS panel; on a JP MSX
 	// those bytes render as kana glyphs ("Japanese text flash" bug).
 
-	return tabExit;
+	return exitCode;
 }

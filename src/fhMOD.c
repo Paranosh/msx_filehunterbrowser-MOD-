@@ -646,9 +646,10 @@ static void runLocalModeLoop(bool networkError)
 // ========================================================
 // Open the local-browser panel (PANEL_LOCAL): draw tabs,
 // enter the local browser, then restore the idle screen.
-// Returns true if the browser was closed with TAB (caller should advance
-// to the next panel rather than staying on the local panel).
-static bool openLocalPanel(Panel_t *localPanel)
+// Returns the LB_EXIT_* code from showLocalBrowser so the caller can
+// decide whether to stay on local, advance to next panel (TAB), or
+// jump to a specific panel (R/D/C).
+static uint8_t openLocalPanel(Panel_t *localPanel)
 {
 	currentPanel = localPanel;
 	printTabs();
@@ -656,7 +657,7 @@ static bool openLocalPanel(Panel_t *localPanel)
 	clearListArea();
 	itemsCount = 0;
 	resetSelectedLine();
-	bool tabExit = showLocalBrowser();
+	uint8_t exitCode = showLocalBrowser();
 	// Restore separator lines and corners overwritten by the overlay.
 	// (┌ top-left is handled by printTabs depending on Local active state.)
 	restoreFrameAfterLocalBrowser();
@@ -664,7 +665,19 @@ static bool openLocalPanel(Panel_t *localPanel)
 	printTabs();
 	clearListArea();
 	printRequestData();
-	return tabExit;
+	return exitCode;
+}
+
+// Translate an LB_EXIT_* code into a panel index, or PANEL_NONE if the
+// code does not request a panel switch.
+static int8_t lbExitToPanel(uint8_t exitCode)
+{
+	switch (exitCode) {
+		case LB_EXIT_ROM: return PANEL_ROM;
+		case LB_EXIT_DSK: return PANEL_DSK;
+		case LB_EXIT_CAS: return PANEL_CAS;
+		default:          return PANEL_NONE;
+	}
 }
 
 // ========================================================
@@ -680,9 +693,12 @@ void menu_loop()
 	// Initialize the startup panel
 	if (IS_LOCAL_PANEL(currentPanel)) {
 		// Local tab: open local browser, no network call needed.
-		// If user pressed TAB to exit, advance directly to ROM panel.
-		if (openLocalPanel(currentPanel)) {
-			currentPanel = &panels[PANEL_ROM];
+		// TAB → next panel (ROM). R/D/C → that specific panel.
+		uint8_t lbExit = openLocalPanel(currentPanel);
+		int8_t  jumpTo = lbExitToPanel(lbExit);
+		if (jumpTo == PANEL_NONE && lbExit == LB_EXIT_TAB) jumpTo = PANEL_ROM;
+		if (jumpTo != PANEL_NONE) {
+			currentPanel = &panels[jumpTo];
 			selectPanel(currentPanel);
 			if (downloadStatus == DOWNLOAD_LIST_ERROR) {
 				localModeOnly = true;
@@ -788,8 +804,14 @@ void menu_loop()
 						}
 					}
 					if (IS_LOCAL_PANEL(currentPanel)) {
-						if (openLocalPanel(currentPanel)) {
-							// User pressed TAB to exit: skip to next non-local panel
+						uint8_t lbExit = openLocalPanel(currentPanel);
+						int8_t  jumpTo = lbExitToPanel(lbExit);
+						if (jumpTo != PANEL_NONE) {
+							// R/D/C: jump straight to requested panel
+							currentPanel = &panels[jumpTo];
+							selectPanel(currentPanel);
+						} else if (lbExit == LB_EXIT_TAB) {
+							// TAB: skip to next non-local panel
 							if (shiftPressed) {
 								do {
 									if (currentPanel == &panels[PANEL_FIRST]) currentPanel = &panels[PANEL_LAST];
@@ -843,7 +865,11 @@ void menu_loop()
 				case KEY_RETURN:
 				case KEY_SELECT:
 					if (IS_LOCAL_PANEL(currentPanel)) {
-						openLocalPanel(currentPanel);
+						{
+							uint8_t lbExit = openLocalPanel(currentPanel);
+							int8_t  jumpTo = lbExitToPanel(lbExit);
+							if (jumpTo != PANEL_NONE) newPanel = jumpTo;
+						}
 						break;
 					}
 					if (!itemsCount) break;
@@ -889,7 +915,12 @@ void menu_loop()
 				if (currentPanel != &panels[newPanel]) {
 					currentPanel = &panels[newPanel];
 					if (IS_LOCAL_PANEL(currentPanel)) {
-						openLocalPanel(currentPanel);
+						uint8_t lbExit = openLocalPanel(currentPanel);
+						int8_t  jumpTo = lbExitToPanel(lbExit);
+						if (jumpTo != PANEL_NONE) {
+							currentPanel = &panels[jumpTo];
+							selectPanel(currentPanel);
+						}
 					} else {
 						selectPanel(currentPanel);
 					}
