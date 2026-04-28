@@ -149,12 +149,32 @@ static void lb_printCounter(uint8_t topLine, uint8_t curLine, uint8_t count)
 }
 
 // ========================================================
-// Scan current directory; fill entries[]; return count
+// Scan current directory; fill entries[]; return count.
+//
+// When NOT at root, two synthetic navigation entries are prepended:
+//   "..": go up one level (parent directory)
+//   "\" : go directly to the drive root
+// They are rendered as [..] and [\] (without a trailing slash) and
+// handled specially in lb_activateEntry.
 static uint8_t lb_scanDir(LBEntry_t *entries)
 {
 	FFBLK ffblk;
 	uint8_t count = 0;
 	char *dot;
+	char curPath[64];
+
+	// Are we below the drive root? If so, prepend nav entries.
+	dos2_getCurrentDirectory(0, curPath);
+	if (curPath[0] != '\0') {
+		strcpy(entries[count].name, "..");
+		entries[count].isDir = 1;
+		entries[count].size  = 0;
+		count++;
+		strcpy(entries[count].name, "\\");
+		entries[count].isDir = 1;
+		entries[count].size  = 0;
+		count++;
+	}
 
 	// Directories first (skip . and ..)
 	if (dos2_findfirst("*.*", &ffblk, ATTR_DIR) == 0) {
@@ -231,8 +251,15 @@ static void lb_printEntry(uint8_t y, LBEntry_t *e, bool selected)
 		buff[0] = '[';
 		len = strlen(e->name);
 		memcpy(buff + 1, e->name, len);
-		buff[1 + len] = '/';
-		buff[2 + len] = ']';
+		// Synthetic nav entries (".." and "\") render without the
+		// trailing '/': [..] and [\]. Real subdirs keep [name/].
+		if ((len == 2 && e->name[0] == '.' && e->name[1] == '.') ||
+		    (len == 1 && e->name[0] == '\\')) {
+			buff[1 + len] = ']';
+		} else {
+			buff[1 + len] = '/';
+			buff[2 + len] = ']';
+		}
 	} else {
 		len = strlen(e->name);
 		memcpy(buff, e->name, len);
