@@ -32,7 +32,7 @@
 #define LB_LIST_Y		(LB_WIN_Y1 + 1)
 #define LB_LIST_ROWS	(LB_WIN_Y2 - LB_LIST_Y - 1)	// visible rows for entries
 
-#define LB_MAX_ENTRIES	30				// max entries per directory scan
+#define LB_MAX_ENTRIES	50				// max entries per directory scan
 #define LB_NAME_MAXLEN	13				// FFBLK filename is 13 bytes (includes null)
 
 #define ATTR_DIR		0x10			// MSX-DOS directory attribute bit
@@ -156,25 +156,44 @@ static void lb_printCounter(uint8_t topLine, uint8_t curLine, uint8_t count)
 // ========================================================
 // Scan current directory; fill entries[]; return count.
 //
-// When NOT at root, two synthetic navigation entries are prepended:
-//   "..": go up one level (parent directory)
-//   "\" : go directly to the drive root
-// They are rendered as [..] and [\] (without a trailing slash) and
-// handled specially in lb_activateEntry.
+// Synthetic entries are always prepended at the top:
+//   "A:" .. "H:"  every mounted drive (probed with getCurrentDirectory)
+//   ".."          parent directory (only when not at drive root)
+//   "\"           drive root        (only when not at drive root)
+// They render as [A:], [..], [\] and are handled specially in
+// lb_activateEntry.
 static uint8_t lb_scanDir(LBEntry_t *entries)
 {
 	FFBLK ffblk;
 	uint8_t count = 0;
+	uint8_t d;
 	char *dot;
 	char curPath[64];
+	char tmpPath[64];
 
-	// Are we below the drive root? If so, prepend nav entries.
+	// 1) Drives: probe A:..H:. dos2_getCurrentDirectory returns 0 on
+	//    success; any other code means the drive is not available.
+	//    The probe also auto-logs the drive in, which is cheap.
+	for (d = 1; d <= 8 && count < LB_MAX_ENTRIES; d++) {
+		if (dos2_getCurrentDirectory(d, tmpPath) == 0) {
+			entries[count].name[0] = (char)('A' + d - 1);
+			entries[count].name[1] = ':';
+			entries[count].name[2] = '\0';
+			entries[count].isDir   = 1;
+			entries[count].size    = 0;
+			count++;
+		}
+	}
+
+	// 2) Are we below the drive root? If so, append nav entries.
 	dos2_getCurrentDirectory(0, curPath);
-	if (curPath[0] != '\0') {
+	if (curPath[0] != '\0' && count < LB_MAX_ENTRIES) {
 		strcpy(entries[count].name, "..");
 		entries[count].isDir = 1;
 		entries[count].size  = 0;
 		count++;
+	}
+	if (curPath[0] != '\0' && count < LB_MAX_ENTRIES) {
 		strcpy(entries[count].name, "\\");
 		entries[count].isDir = 1;
 		entries[count].size  = 0;
@@ -256,10 +275,12 @@ static void lb_printEntry(uint8_t y, LBEntry_t *e, bool selected)
 		buff[0] = '[';
 		len = strlen(e->name);
 		memcpy(buff + 1, e->name, len);
-		// Synthetic nav entries (".." and "\") render without the
-		// trailing '/': [..] and [\]. Real subdirs keep [name/].
+		// Synthetic nav entries render without the trailing '/':
+		//   "..", "\", drive letters "X:"   ->   [..], [\], [X:]
+		// Real subdirectories keep [name/].
 		if ((len == 2 && e->name[0] == '.' && e->name[1] == '.') ||
-		    (len == 1 && e->name[0] == '\\')) {
+		    (len == 1 && e->name[0] == '\\') ||
+		    (len == 2 && e->name[1] == ':')) {
 			buff[1 + len] = ']';
 		} else {
 			buff[1 + len] = '/';
@@ -586,7 +607,19 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 	uint8_t  mapper;
 
 	if (entry->isDir) {
-		dos2_setCurrentDirectory(entry->name);
+		// Drive entries like "A:" -> switch to that drive's root.
+		// dos2_setCurrentDirectory("A:\") accepts a full drive+root
+		// path and changes the active drive in one call.
+		if (entry->name[0] && entry->name[1] == ':' && entry->name[2] == '\0') {
+			char drivePath[4];
+			drivePath[0] = entry->name[0];
+			drivePath[1] = ':';
+			drivePath[2] = '\\';
+			drivePath[3] = '\0';
+			dos2_setCurrentDirectory(drivePath);
+		} else {
+			dos2_setCurrentDirectory(entry->name);
+		}
 		return 0;
 	}
 
@@ -680,11 +713,16 @@ uint8_t showLocalBrowser(void)
 	uint8_t action;
 	char savedPath[64];
 	char curPath[64];
+	uint8_t savedDrive;
 
 	// Flush any pending keypresses so no stray key triggers an action immediately
 	while (kbhit()) getch();
 
-	// Save current directory so we can restore it when the browser closes
+	// Save current drive AND directory so we can restore both when the
+	// browser closes. With the drive-switching nav entries the user may
+	// be on a different drive at exit time; restoring just the path
+	// alone would land on the wrong drive's root.
+	savedDrive = getCurrentDrive();
 	dos2_getCurrentDirectory(0, savedPath);
 
 	// Navigate to root of current drive — provides an explicit, valid default
@@ -694,9 +732,11 @@ uint8_t showLocalBrowser(void)
 	// Allocate entry list on heap (above existing list data)
 	entries = (LBEntry_t *)malloc(LB_MAX_ENTRIES * sizeof(LBEntry_t));
 	if (!entries) {
-		// Restore original directory and return
-		buff[0] = '\\';
-		strcpy(buff + 1, savedPath);
+		// Restore original drive + directory and return
+		buff[0] = (char)('A' + savedDrive);
+		buff[1] = ':';
+		buff[2] = '\\';
+		strcpy(buff + 3, savedPath);
 		dos2_setCurrentDirectory(buff);
 		return LB_EXIT_CLOSE;
 	}
@@ -807,10 +847,12 @@ uint8_t showLocalBrowser(void)
 			// into the BIOS keyboard buffer and exits so COMMAND.COM
 			// picks it up. Only returns here on error.
 			//
-			// Restore working directory first so the user's original
-			// CWD is in effect when OCMINFO.COM runs.
-			buff[0] = '\\';
-			strcpy(buff + 1, savedPath);
+			// Restore original drive + dir so OCMINFO.COM runs with
+			// the same CWD the user had before opening the browser.
+			buff[0] = (char)('A' + savedDrive);
+			buff[1] = ':';
+			buff[2] = '\\';
+			strcpy(buff + 3, savedPath);
 			dos2_setCurrentDirectory(buff);
 			free(LB_MAX_ENTRIES * sizeof(LBEntry_t));
 			restoreScreen();
@@ -819,9 +861,11 @@ uint8_t showLocalBrowser(void)
 		}
 	}
 
-	// Restore original working directory
-	buff[0] = '\\';
-	strcpy(buff + 1, savedPath);
+	// Restore original drive + working directory
+	buff[0] = (char)('A' + savedDrive);
+	buff[1] = ':';
+	buff[2] = '\\';
+	strcpy(buff + 3, savedPath);
 	dos2_setCurrentDirectory(buff);
 
 	// Free entry list
