@@ -463,10 +463,116 @@ static bool lb_buildCasStub(const char *casFilename)
 	return true;
 }
 
+// Detect a multi-disk set sharing the selected file's basename, e.g.
+// MEMOIRS1.DSK / MEMOIRS2.DSK / MEMOIRS3.DSK. Strips the trailing run
+// of digits from the basename of `selected` and probes the disk for
+// every <base><N>.DSK with N = 1..20 (SofaRunIt's hard limit). Fills
+// out[] with the matches in numeric order and returns the count.
+//
+// Returns 0 if the filename does not end in a digit, or if probing
+// finds only a single file — the caller falls back to a single-disk
+// launch in that case.
+#define LB_MAX_DISKS 20
+#define LB_DSK_NAMELEN 14   // 8.3 + null
+
+static uint8_t lb_findMultiDsk(const char *selected,
+                                char        out[LB_MAX_DISKS][LB_DSK_NAMELEN])
+{
+	char        base[16];
+	const char *dot = strrchr(selected, '.');
+	uint8_t     dotIdx;
+	uint8_t     firstDigit;
+	uint8_t     count = 0;
+	uint8_t     i;
+	char        candidate[LB_DSK_NAMELEN];
+
+	if (!dot) return 0;
+	dotIdx = (uint8_t)(dot - selected);
+
+	// Walk back from the dot while the previous char is a digit.
+	firstDigit = dotIdx;
+	while (firstDigit > 0 && selected[firstDigit - 1] >= '0'
+	                      && selected[firstDigit - 1] <= '9')
+		firstDigit--;
+	if (firstDigit == dotIdx) return 0;	// no trailing digit
+	if (firstDigit >= sizeof(base)) return 0;
+
+	memcpy(base, selected, firstDigit);
+	base[firstDigit] = '\0';
+
+	// Enumerate <base><N>.DSK for N=1..20.
+	for (i = 1; i <= LB_MAX_DISKS && count < LB_MAX_DISKS; i++) {
+		csprintf(candidate, "%s%u.DSK", base, (uint16_t)i);
+		if (dos2_fileexists(candidate)) {
+			strcpy(out[count], candidate);
+			count++;
+		}
+	}
+	return (count >= 2) ? count : 0;
+}
+
+// Build a FHRUN.BAT in the current directory containing the full SRI
+// command line. Used for multi-disk launches because the BIOS keyboard
+// buffer is only 40 bytes — way too small to inject 4+ filenames. We
+// inject "FHRUN.BAT" (9 bytes) instead and COMMAND.COM executes the
+// .BAT, which can be arbitrarily long.
+//
+// Written byte-by-chunk via dos2_fwrite, NOT through 'buff' (only 200
+// bytes; with 14+ disks the SRI line would overflow).
+static bool lb_buildDskBat(char dsks[LB_MAX_DISKS][LB_DSK_NAMELEN],
+                            uint8_t count)
+{
+	FILEH   fh;
+	uint8_t i;
+	uint16_t n;
+
+	dos2_remove("FHRUN.BAT");
+	fh = dos2_fcreate("FHRUN.BAT", O_WRONLY, ATTR_ARCHIVE);
+	if (fh >= ERR_FIRST) return false;
+
+	dos2_fwrite("SRI", 3, fh);
+	for (i = 0; i < count; i++) {
+		dos2_fwrite(" ", 1, fh);
+		n = (uint16_t)strlen(dsks[i]);
+		dos2_fwrite(dsks[i], n, fh);
+	}
+	dos2_fwrite("\r\n", 2, fh);
+	dos2_fclose(fh);
+	return true;
+}
+
+// Centred popup that tells the user how many disks were detected and
+// blocks until any key is pressed. Drawn with drawFrame() so it shares
+// the look of the loading box.
+static void lb_showMultiDiskBox(uint8_t count)
+{
+	const uint8_t x1 = 22;
+	const uint8_t y1 = 10;
+	const uint8_t x2 = 57;
+	const uint8_t y2 = 15;
+	uint8_t y;
+
+	for (y = y1 + 1; y < y2; y++) {
+		_fillVRAM((uint16_t)((y - 1) * 80 + (x1 - 1)),
+		          (uint16_t)(x2 - x1 + 1), ' ');
+	}
+	drawFrame(x1, y1, x2, y2);
+
+	csprintf(buff, "%u DSK images detected.", (uint16_t)count);
+	putstrxy(x1 + 4, y1 + 1, buff);
+	putstrxy(x1 + 3, y1 + 3, "Press any key to launch...");
+
+	while (kbhit()) getch();		// flush
+	while (!kbhit()) { ASM_EI; ASM_HALT; }
+	getch();
+}
+
 // Activate selected entry:
 //   directories  -> chdir + return 0 (rescan)
 //   .ROM         -> auto-detect mapper, inject "SROM [/Rx] <file>" + exit
-//   .DSK         -> inject "SRI <file>" and exit fhMOD.com  (SofaRunIt)
+//   .DSK         -> single: inject "SRI <file>". Multi-disk (basename
+//                   ends in a digit and siblings exist): build FHRUN.BAT
+//                   with "SRI disk1 disk2 ..." and inject FHRUN.BAT.
 //   .CAS         -> write FHCAS.BAS stub in CWD then inject "BASIC FHCAS.BAS"
 //                   so BASIC autoruns LOADCAX on the cassette image
 //   .COM/.BAS    -> inject "<file>"     and exit fhMOD.com
@@ -499,6 +605,26 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 		// never reached (dos2_exit called inside)
 
 	} else if (strcmp(dot, ".DSK") == 0) {
+		// Try multi-disk detection first. If the basename ends in a
+		// digit and 2+ siblings exist (<base>1.DSK..<base>N.DSK) we
+		// hand them all to SRI via a FHRUN.BAT — the BIOS keyboard
+		// buffer is too small (40 bytes) for 4+ filenames inline.
+		{
+			char dsks[LB_MAX_DISKS][LB_DSK_NAMELEN];
+			uint8_t n = lb_findMultiDsk(entry->name, dsks);
+			if (n >= 2) {
+				lb_showMultiDiskBox(n);
+				if (!lb_buildDskBat(dsks, n)) {
+					putchar('\x07');
+					return 0;
+				}
+				lb_showLoadingBox();
+				csprintf(buff, "FHRUN.BAT");
+				lb_execCommand(buff, NULL);
+				// never reached
+			}
+		}
+		// Single disk — original path.
 		lb_showLoadingBox();
 		// SofaRunIt has no quiet-mode flag
 		csprintf(buff, "SRI %s", entry->name);
