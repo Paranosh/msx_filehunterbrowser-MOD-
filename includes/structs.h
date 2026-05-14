@@ -34,9 +34,12 @@ typedef struct {
 	char       *download[4];
 } Request_t;
 
-// Struct to hold the section information
+// Struct to hold the section information.
+// name is large enough to hold the widest tab label currently used
+// ("[L]ocal" = 7 chars + null = 8). Bumped from 6 to 12 to leave
+// headroom for any future tab without another resize.
 typedef struct {
-	char       name[6];
+	char       name[12];
 	ReqType_t *type;
 	char       key;
 	uint8_t    posx;
