@@ -27,6 +27,7 @@
 #include "mod_serverBrowser.h"
 #include "mod_disposable.h"
 #include "mod_launcher.h"
+#include "mod_joystick.h"
 #ifdef _DEBUG_
 	#include "test.h"
 #endif
@@ -742,11 +743,12 @@ void menu_loop()
 	char key;
 
 	while (!end) {
-		// Wait for a pressed key
+		// Wait for a pressed key (keyboard OR joystick port 1)
 		ASM_EI; ASM_HALT;
-		if (kbhit()) {
+		uint8_t joyKey = joystickPoll();
+		if (kbhit() || joyKey) {
 			resetMarquee();
-			key = dos2_toupper(getch());
+			key = joyKey ? (char)joyKey : dos2_toupper(getch());
 			shiftPressed = isShiftKeyPressed();
 			switch(key) {
 				case KEY_UP:

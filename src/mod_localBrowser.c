@@ -15,6 +15,7 @@
 #include "fh.h"
 #include "mod_localBrowser.h"
 #include "mod_launcher.h"
+#include "mod_joystick.h"
 
 
 // ========================================================
@@ -712,9 +713,10 @@ uint8_t showLocalBrowser(void)
 
 	while (!done) {
 		ASM_EI; ASM_HALT;
-		if (!kbhit()) continue;
+		uint8_t joyKey = joystickPoll();
+		if (!kbhit() && !joyKey) continue;
 
-		key = dos2_toupper(getch());
+		key = joyKey ? (char)joyKey : dos2_toupper(getch());
 
 		if (key == KEY_UP) {
 			if (count) {

@@ -70,6 +70,7 @@ REL_LIBS = 	$(addprefix $(LIBDIR)/, $(LIBS)) \
 				mod_serverBrowser.rel \
 				mod_serverSelect.rel \
 				mod_launcher.rel \
+				mod_joystick.rel \
 			)
 
 PROGRAM = fhMOD
