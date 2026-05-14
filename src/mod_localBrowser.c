@@ -86,6 +86,31 @@ extern void showHelpWindow();
 // can wipe it.
 static void lb_appendManifest(const char *filename);
 
+// BDOS 0x0E (SELDRV) — switch the active drive.
+//
+// MSX-DOS 2's CHDIR (used by dos2_setCurrentDirectory) only sets the
+// "current directory" attribute of a drive; it does NOT change the
+// active drive. So passing "B:\\" to dos2_setCurrentDirectory updates
+// B:'s remembered directory but the user still sees A:. We need
+// SELDRV first, then CHDIR to "\\" inside the new active drive.
+//
+// IX/IY are caller-saved under __sdcccall(1) so push/pop them around
+// the BDOS call.
+static void lb_selectDrive(uint8_t drive) __naked __sdcccall(1)
+{
+	drive;	/* A = drive number, 0 = A:, 1 = B:, ... */
+	__asm
+		push ix
+		push iy
+		ld   e, a
+		ld   c, #0x0E
+		call 5
+		pop  iy
+		pop  ix
+		ret
+	__endasm;
+}
+
 // ========================================================
 // Inject a command string into the BIOS keyboard buffer.
 // When fhMOD.com exits afterwards, COMMAND.COM will read and execute it.
@@ -724,16 +749,13 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 	uint8_t  mapper;
 
 	if (entry->isDir) {
-		// Drive entries like "A:" -> switch to that drive's root.
-		// dos2_setCurrentDirectory("A:\") accepts a full drive+root
-		// path and changes the active drive in one call.
+		// Drive entries like "A:" -> switch active drive via SELDRV,
+		// then CHDIR to "\" so we land at the new drive's root.
+		// Plain CHDIR("X:\\") doesn't switch the active drive on
+		// MSX-DOS 2 / Nextor — it only updates X:'s remembered dir.
 		if (entry->name[0] && entry->name[1] == ':' && entry->name[2] == '\0') {
-			char drivePath[4];
-			drivePath[0] = entry->name[0];
-			drivePath[1] = ':';
-			drivePath[2] = '\\';
-			drivePath[3] = '\0';
-			dos2_setCurrentDirectory(drivePath);
+			lb_selectDrive((uint8_t)(entry->name[0] - 'A'));
+			dos2_setCurrentDirectory("\\");
 		} else {
 			dos2_setCurrentDirectory(entry->name);
 		}
@@ -849,11 +871,12 @@ uint8_t showLocalBrowser(void)
 	// Allocate entry list on heap (above existing list data)
 	entries = (LBEntry_t *)malloc(LB_MAX_ENTRIES * sizeof(LBEntry_t));
 	if (!entries) {
-		// Restore original drive + directory and return
-		buff[0] = (char)('A' + savedDrive);
-		buff[1] = ':';
-		buff[2] = '\\';
-		strcpy(buff + 3, savedPath);
+		// Restore original drive + directory and return.
+		// SELDRV first because CHDIR alone won't switch the active
+		// drive (see lb_selectDrive comment).
+		lb_selectDrive(savedDrive);
+		buff[0] = '\\';
+		strcpy(buff + 1, savedPath);
 		dos2_setCurrentDirectory(buff);
 		return LB_EXIT_CLOSE;
 	}
@@ -966,10 +989,10 @@ uint8_t showLocalBrowser(void)
 			//
 			// Restore original drive + dir so OCMINFO.COM runs with
 			// the same CWD the user had before opening the browser.
-			buff[0] = (char)('A' + savedDrive);
-			buff[1] = ':';
-			buff[2] = '\\';
-			strcpy(buff + 3, savedPath);
+			// SELDRV before CHDIR; CHDIR alone doesn't switch drive.
+			lb_selectDrive(savedDrive);
+			buff[0] = '\\';
+			strcpy(buff + 1, savedPath);
 			dos2_setCurrentDirectory(buff);
 			free(LB_MAX_ENTRIES * sizeof(LBEntry_t));
 			restoreScreen();
@@ -978,11 +1001,11 @@ uint8_t showLocalBrowser(void)
 		}
 	}
 
-	// Restore original drive + working directory
-	buff[0] = (char)('A' + savedDrive);
-	buff[1] = ':';
-	buff[2] = '\\';
-	strcpy(buff + 3, savedPath);
+	// Restore original drive + working directory. SELDRV before CHDIR;
+	// CHDIR alone doesn't switch the active drive.
+	lb_selectDrive(savedDrive);
+	buff[0] = '\\';
+	strcpy(buff + 1, savedPath);
 	dos2_setCurrentDirectory(buff);
 
 	// Free entry list
