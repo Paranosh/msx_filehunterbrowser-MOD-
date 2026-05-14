@@ -80,6 +80,12 @@ extern void printTabs();
 extern void showHelpWindow();
 // restoreScreen() is declared in fh.h (already included)
 
+// Forward decl — defined further down. Called by lb_copyLoadcax,
+// lb_buildCasStub and lb_buildDskBat to record a residual file's
+// absolute path in the FHCLEAN.LST manifest so the next fhMOD launch
+// can wipe it.
+static void lb_appendManifest(const char *filename);
+
 // ========================================================
 // Inject a command string into the BIOS keyboard buffer.
 // When fhMOD.com exits afterwards, COMMAND.COM will read and execute it.
