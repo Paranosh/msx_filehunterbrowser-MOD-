@@ -46,10 +46,13 @@ const ReqMSX_t reqMSX[] = {
 };
 
 const Panel_t panels[] = {
-	{"[L]oc", NULL,                 'l', 1,  "[ Local file browser ]"},
-	{"[R]OM", &reqType[REQTYPE_ROM], 'r', 8,  "[ ROM files ]"},
-	{"[D]SK", &reqType[REQTYPE_DSK], 'd', 15, "[ Disk images ]"},
-	{"[C]AS", &reqType[REQTYPE_CAS], 'c', 22, "[ CAS tape dumps ]"},
+	// [L]ocal occupies cols 1..9 (9-wide tab, 7-char label). The other
+	// tabs keep their 5-char labels and were pushed +2 cols to the right
+	// so the LOC tab can fit. See printTabs() for the wide-tab branch.
+	{"[L]ocal", NULL,                 'l', 1,  "[ Local file browser ]"},
+	{"[R]OM",   &reqType[REQTYPE_ROM], 'r', 10, "[ ROM files ]"},
+	{"[D]SK",   &reqType[REQTYPE_DSK], 'd', 17, "[ Disk images ]"},
+	{"[C]AS",   &reqType[REQTYPE_CAS], 'c', 24, "[ CAS tape dumps ]"},
 	{"", NULL, 0, 0, NULL}
 };
 
@@ -320,14 +323,24 @@ void printTabs()
 
 	Panel_t *panel = panels;
 	while (panel->name[0]) {
+		// LOC tab is 9 wide (label "[L]ocal" needs 7 interior cols);
+		// every other tab is the original 7 wide. The drawing strings
+		// below match each width.
+		bool wide = (panel == &panels[PANEL_LOCAL]);
+
 		if (panel == currentPanel) {
-			putstrxy(panel->posx, 2, "\x18\x17\x17\x17\x17\x17\x19");
-			putstrxy(panel->posx, 3, "\x16     \x16");
+			if (wide) {
+				putstrxy(panel->posx, 2, "\x18\x17\x17\x17\x17\x17\x17\x17\x19");
+				putstrxy(panel->posx, 3, "\x16       \x16");
+			} else {
+				putstrxy(panel->posx, 2, "\x18\x17\x17\x17\x17\x17\x19");
+				putstrxy(panel->posx, 3, "\x16     \x16");
+			}
 			// Local tab sits at col 1 (the frame edge), so there is no
 			// room for the open-bottom ┘  └ effect; use plain ─ instead.
 			// The ┌ corner at (1,4) is always drawn after the loop below.
 			if (panel == &panels[PANEL_LOCAL]) {
-				putstrxy(panel->posx, 4, "\x17\x17\x17\x17\x17\x17\x17");
+				putstrxy(panel->posx, 4, "\x17\x17\x17\x17\x17\x17\x17\x17\x17");
 			} else {
 				putstrxy(panel->posx, 4, "\x1b     \x1a");
 			}
@@ -335,9 +348,15 @@ void printTabs()
 			_fillVRAM(34, MAX_PANEL_DESCRIPTION, ' ');
 			putstrxy(35, 1, panel->description);
 		} else {
-			putstrxy(panel->posx, 2, "       ");
-			putstrxy(panel->posx, 3, "       ");
-			putstrxy(panel->posx, 4, "\x17\x17\x17\x17\x17\x17\x17");
+			if (wide) {
+				putstrxy(panel->posx, 2, "         ");
+				putstrxy(panel->posx, 3, "         ");
+				putstrxy(panel->posx, 4, "\x17\x17\x17\x17\x17\x17\x17\x17\x17");
+			} else {
+				putstrxy(panel->posx, 2, "       ");
+				putstrxy(panel->posx, 3, "       ");
+				putstrxy(panel->posx, 4, "\x17\x17\x17\x17\x17\x17\x17");
+			}
 		}
 		putstrxy(panel->posx+1, 3, panel->name);
 		++panel;

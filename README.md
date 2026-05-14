@@ -30,7 +30,7 @@ This fork stays compatible with upstream's network panels (ROM/DSK/CAS/VGM) and 
 | Area | Change |
 |---|---|
 | **F5 key** | Launches `OCMINFO.COM` (must be on the DOS PATH) instead of `SR.COM /S`. |
-| **Local browser** | Full filesystem browser on the `[L]oc` tab, no network needed. |
+| **Local browser** | Full filesystem browser on the `[L]ocal` tab, no network needed. |
 | **`.CAS` support** | ENTER on a `.CAS` file boots into BASIC with LOADCAX so the cassette image plays back through the BIOS tape hooks — no manual `BASIC … BLOAD"LOADCAX"…` dance. |
 | **`[..]` and `[\]`** | Synthetic navigation entries at the top of the local browser to jump one level up / to the drive root. |
 | **R / D / C keys** | Work as panel shortcuts even while the local browser is open (close it and switch to ROM / DSK / CAS). |
@@ -76,7 +76,7 @@ Global shortcuts (work on any tab):
 
 ## Local file browser
 
-Open with the `[L]oc` tab (or `L`). Inside:
+Open with the `[L]ocal` tab (or `L`). Inside:
 
 | Key | Action |
 |---|---|

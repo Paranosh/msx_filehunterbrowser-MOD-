@@ -134,12 +134,12 @@ static void lb_drawWindow(void)
 	putstrxy(3, LB_WIN_Y2, " UP/DOWN:Navigate  ENTER:Open/Launch  ESC:Back ");
 
 	// Replace the ┌ top-left corner with │ + blank spaces under the
-	// "[L]oc" tab text (5 chars), and put a └ at col 7 so the tab's
+	// "[L]ocal" tab text (7 chars), and put a └ at col 9 so the tab's
 	// right edge "opens" into the frame like the other tabs do.
-	// Col 1 = │, cols 2..6 = spaces, col 7 = └, col 8+ = ─ (already drawn).
+	// Col 1 = │, cols 2..8 = spaces, col 9 = └, col 10+ = ─ (already drawn).
 	setByteVRAM((uint16_t)((LB_WIN_Y1 - 1) * 80), 0x16);      // │
-	_fillVRAM((uint16_t)((LB_WIN_Y1 - 1) * 80 + 1), 5, ' ');  // blank under "[L]oc"
-	setByteVRAM((uint16_t)((LB_WIN_Y1 - 1) * 80 + 6), 0x1a);  // └
+	_fillVRAM((uint16_t)((LB_WIN_Y1 - 1) * 80 + 1), 7, ' ');  // blank under "[L]ocal"
+	setByteVRAM((uint16_t)((LB_WIN_Y1 - 1) * 80 + 8), 0x1a);  // └
 }
 
 // ========================================================
@@ -517,10 +517,19 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 		lb_execCommand(buff, NULL);
 		// never reached
 
-	} else if (strcmp(dot, ".COM") == 0 ||
-	           strcmp(dot, ".BAS") == 0) {
-		// Run program directly — no launcher message
+	} else if (strcmp(dot, ".COM") == 0) {
+		// .COM: direct execution
 		csprintf(buff, "%s", entry->name);
+		lb_execCommand(buff, NULL);
+		// never reached
+
+	} else if (strcmp(dot, ".BAS") == 0) {
+		// .BAS: hand off to BASIC. MSX-DOS's BASIC command auto-runs the
+		// file given as its argument, equivalent to RUN"<name>" inside
+		// the interpreter. No FHBAS.BAS stub needed because BASIC reads
+		// the .BAS path directly from the command line.
+		lb_showLoadingBox();
+		csprintf(buff, "BASIC %s", entry->name);
 		lb_execCommand(buff, NULL);
 		// never reached
 	}
