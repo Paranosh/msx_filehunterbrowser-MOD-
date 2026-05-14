@@ -13,14 +13,22 @@
 #define JOY_REPEAT_TICKS	5
 
 /* GTSTCK BIOS call (0x00D5). A = stick number (1 = joystick port 1).
-   Returns A = direction (0..8, 0 = no input, clockwise from up). */
+   Returns A = direction (0..8, 0 = no input, clockwise from up).
+   IX and IY MUST be preserved across the call: under __sdcccall(1)
+   they are callee-saved and the caller (menu_loop / showLocalBrowser)
+   uses IX as its frame pointer. Clobbering them deadlocks both the
+   keyboard scan and the joystick poll. */
 static uint8_t bios_gtstck(uint8_t stick) __naked __sdcccall(1)
 {
 	stick;
 	__asm
+		push ix
+		push iy
 		ld   ix, #0x00D5
 		ld   iy, (#EXPTBL-1)
 		call CALSLT
+		pop  iy
+		pop  ix
 		ld   l, a
 		ret
 	__endasm;
@@ -32,14 +40,19 @@ static uint8_t bios_gtstck(uint8_t stick) __naked __sdcccall(1)
        2 = joy2 trigger A
        3 = joy1 trigger B
        4 = joy2 trigger B
-   Returns A = 0 (released) or 0xFF (pressed). */
+   Returns A = 0 (released) or 0xFF (pressed). Same IX/IY save rule
+   as bios_gtstck above. */
 static uint8_t bios_gttrig(uint8_t trig) __naked __sdcccall(1)
 {
 	trig;
 	__asm
+		push ix
+		push iy
 		ld   ix, #0x00D8
 		ld   iy, (#EXPTBL-1)
 		call CALSLT
+		pop  iy
+		pop  ix
 		ld   l, a
 		ret
 	__endasm;
