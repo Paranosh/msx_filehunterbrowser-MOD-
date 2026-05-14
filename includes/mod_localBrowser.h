@@ -17,3 +17,9 @@
 #define LB_EXIT_CAS		4	// C pressed — jump to CAS panel
 
 uint8_t showLocalBrowser(void);
+
+// Called once at fhMOD startup. Reads A:\UTILS\FHCLEAN.LST (if present),
+// deletes every absolute path listed in it, and wipes the manifest.
+// Cleans up LOADCAX / FHCAS.BAS / FHRUN.BAT residue dropped into game
+// directories by previous fhMOD sessions.
+void lb_cleanupResiduals(void);

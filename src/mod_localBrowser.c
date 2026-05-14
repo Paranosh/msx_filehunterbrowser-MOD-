@@ -379,6 +379,10 @@ static uint8_t lb_detectROMMapper(const char *filename)
 // Path of the canonical LOADCAX binary. Must live alongside fhMOD.com.
 #define LOADCAX_SRC_PATH	"\\UTILS\\LOADCAX"
 #define LOADCAX_DEST_NAME	"LOADCAX"
+// Manifest of residual files dropped into game dirs (LOADCAX, FHCAS.BAS,
+// FHRUN.BAT). Read + wiped once at fhMOD startup.
+#define LB_MANIFEST_PATH	"\\UTILS\\FHCLEAN.LST"
+#define LB_MANIFEST_BUFLEN	1024
 // Matches the BUFF_SIZE used to malloc 'buff' in fhMOD.c. Keep in sync.
 #define LB_BUFF_SIZE		200
 
@@ -413,7 +417,112 @@ static bool lb_copyLoadcax(void)
 
 	dos2_fclose(fhDst);
 	dos2_fclose(fhSrc);
+	lb_appendManifest(LOADCAX_DEST_NAME);
 	return true;
+}
+
+// Append the absolute path of `filename` (which is created in CWD) to
+// the cleanup manifest. Used so the next fhMOD launch can wipe every
+// residual LOADCAX / FHCAS.BAS / FHRUN.BAT we ever drop on game dirs.
+//
+// The manifest is rewritten in full each time — appending via seek-to-
+// end would need raw BDOS 0x4A which we don't have wrapped here. Cost
+// is irrelevant: at most a handful of paths, < 1 KB total.
+static void lb_appendManifest(const char *filename)
+{
+	static char manifest[LB_MANIFEST_BUFLEN];
+	char        absPath[80];
+	char        curPath[64];
+	uint8_t     drive;
+	uint16_t    used = 0;
+	uint16_t    n;
+	FILEH       fh;
+
+	/* Build "<drive>:\<cwd>\<filename>". CWD is returned without a
+	   leading backslash and without a drive prefix. */
+	drive = getCurrentDrive();
+	dos2_getCurrentDirectory(0, curPath);
+	absPath[0] = (char)('A' + drive);
+	absPath[1] = ':';
+	absPath[2] = '\\';
+	absPath[3] = '\0';
+	n = 3;
+	if (curPath[0]) {
+		uint16_t cl = (uint16_t)strlen(curPath);
+		if (n + cl + 1 >= sizeof(absPath)) return;
+		memcpy(absPath + n, curPath, cl); n += cl;
+		absPath[n++] = '\\';
+		absPath[n] = '\0';
+	}
+	{
+		uint16_t fl = (uint16_t)strlen(filename);
+		if (n + fl + 1 >= sizeof(absPath)) return;
+		memcpy(absPath + n, filename, fl); n += fl;
+		absPath[n] = '\0';
+	}
+
+	/* Slurp existing manifest (if any). */
+	fh = dos2_fopen(LB_MANIFEST_PATH, O_RDONLY);
+	if (fh < ERR_FIRST) {
+		used = (uint16_t)dos2_fread(manifest, LB_MANIFEST_BUFLEN - 1, fh);
+		dos2_fclose(fh);
+		if (used >= LB_MANIFEST_BUFLEN) used = LB_MANIFEST_BUFLEN - 1;
+	}
+
+	/* Append "<absPath>\r\n" — bail if it would overflow. */
+	{
+		uint16_t pl = (uint16_t)strlen(absPath);
+		if (used + pl + 2 >= LB_MANIFEST_BUFLEN) return;
+		memcpy(manifest + used, absPath, pl); used += pl;
+		manifest[used++] = '\r';
+		manifest[used++] = '\n';
+	}
+
+	/* Rewrite from scratch (dos2_fcreate refuses to overwrite). */
+	dos2_remove(LB_MANIFEST_PATH);
+	fh = dos2_fcreate(LB_MANIFEST_PATH, O_WRONLY, ATTR_ARCHIVE);
+	if (fh >= ERR_FIRST) return;
+	dos2_fwrite(manifest, used, fh);
+	dos2_fclose(fh);
+}
+
+void lb_cleanupResiduals(void)
+{
+	static char manifest[LB_MANIFEST_BUFLEN];
+	char        path[80];
+	uint16_t    used;
+	uint16_t    i;
+	uint16_t    lineStart;
+	uint16_t    len;
+	FILEH       fh;
+
+	fh = dos2_fopen(LB_MANIFEST_PATH, O_RDONLY);
+	if (fh >= ERR_FIRST) return;
+	used = (uint16_t)dos2_fread(manifest, LB_MANIFEST_BUFLEN - 1, fh);
+	dos2_fclose(fh);
+	if (used >= LB_MANIFEST_BUFLEN) used = LB_MANIFEST_BUFLEN - 1;
+	manifest[used] = '\0';
+
+	/* Walk lines and delete each. Empty lines and lines that don't fit
+	   in `path` are silently skipped. */
+	lineStart = 0;
+	for (i = 0; i <= used; i++) {
+		if (i == used || manifest[i] == '\r' || manifest[i] == '\n') {
+			len = i - lineStart;
+			if (len > 0 && len < sizeof(path)) {
+				memcpy(path, manifest + lineStart, len);
+				path[len] = '\0';
+				dos2_remove(path);
+			}
+			/* Skip the rest of the CRLF / multiple newlines. */
+			while (i < used && (manifest[i] == '\r' || manifest[i] == '\n'))
+				i++;
+			lineStart = i;
+			if (i < used) i--;	/* offset the loop ++ */
+		}
+	}
+
+	dos2_remove(LB_MANIFEST_PATH);
 }
 
 // Paint a centred "Loading game..." box on top of the local browser so
@@ -482,6 +591,7 @@ static bool lb_buildCasStub(const char *casFilename)
 	len = (uint16_t)strlen(buff);
 	dos2_fwrite(buff, len, fh);
 	dos2_fclose(fh);
+	lb_appendManifest("FHCAS.BAS");
 	return true;
 }
 
@@ -560,6 +670,7 @@ static bool lb_buildDskBat(char dsks[LB_MAX_DISKS][LB_DSK_NAMELEN],
 	}
 	dos2_fwrite("\r\n", 2, fh);
 	dos2_fclose(fh);
+	lb_appendManifest("FHRUN.BAT");
 	return true;
 }
 

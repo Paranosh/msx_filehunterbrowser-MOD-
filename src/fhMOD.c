@@ -1042,6 +1042,10 @@ int main(char **argv, int argc) __sdcccall(0)
 	resetList();
 	initializeBuffers();
 
+	// Wipe LOADCAX/FHCAS.BAS/FHRUN.BAT residue left in game directories
+	// by previous fhMOD runs (manifest at \UTILS\FHCLEAN.LST).
+	lb_cleanupResiduals();
+
 	// Menu loop
 	menu_loop();
 
