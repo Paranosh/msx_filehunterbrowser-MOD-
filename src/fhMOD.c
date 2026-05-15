@@ -700,6 +700,12 @@ static int8_t lbExitToPanel(uint8_t exitCode)
 	}
 }
 
+// Did the local browser come back asking us to quit the whole app?
+static inline bool lbExitIsQuit(uint8_t exitCode)
+{
+	return exitCode == LB_EXIT_QUIT;
+}
+
 // ========================================================
 void menu_loop()
 {
@@ -714,7 +720,9 @@ void menu_loop()
 	if (IS_LOCAL_PANEL(currentPanel)) {
 		// Local tab: open local browser, no network call needed.
 		// TAB → next panel (ROM). R/D/C → that specific panel.
+		// QUIT → user confirmed exit; bail before the menu loop.
 		uint8_t lbExit = openLocalPanel(currentPanel);
+		if (lbExitIsQuit(lbExit)) return;
 		int8_t  jumpTo = lbExitToPanel(lbExit);
 		if (jumpTo == PANEL_NONE && lbExit == LB_EXIT_TAB) jumpTo = PANEL_ROM;
 		if (jumpTo != PANEL_NONE) {
@@ -826,6 +834,7 @@ void menu_loop()
 					}
 					if (IS_LOCAL_PANEL(currentPanel)) {
 						uint8_t lbExit = openLocalPanel(currentPanel);
+						if (lbExitIsQuit(lbExit)) { ++end; break; }
 						int8_t  jumpTo = lbExitToPanel(lbExit);
 						if (jumpTo != PANEL_NONE) {
 							// R/D/C: jump straight to requested panel
@@ -888,6 +897,7 @@ void menu_loop()
 					if (IS_LOCAL_PANEL(currentPanel)) {
 						{
 							uint8_t lbExit = openLocalPanel(currentPanel);
+							if (lbExitIsQuit(lbExit)) { ++end; break; }
 							int8_t  jumpTo = lbExitToPanel(lbExit);
 							if (jumpTo != PANEL_NONE) newPanel = jumpTo;
 						}
@@ -924,8 +934,15 @@ void menu_loop()
 						printRequestData();
 						updateList();
 					} else {
-						++end;
-						printCurrentLine();
+						// ESC on a network panel: confirm before quitting.
+						// "No" repaints the current panel underneath the
+						// popup; "Yes" ends the loop and returns to DOS.
+						if (lb_confirmExit()) {
+							++end;
+							printCurrentLine();
+						} else {
+							printList();
+						}
 					}
 					break;
 				default:
@@ -937,10 +954,13 @@ void menu_loop()
 					currentPanel = &panels[newPanel];
 					if (IS_LOCAL_PANEL(currentPanel)) {
 						uint8_t lbExit = openLocalPanel(currentPanel);
-						int8_t  jumpTo = lbExitToPanel(lbExit);
-						if (jumpTo != PANEL_NONE) {
-							currentPanel = &panels[jumpTo];
-							selectPanel(currentPanel);
+						if (lbExitIsQuit(lbExit)) { ++end; }
+						else {
+							int8_t jumpTo = lbExitToPanel(lbExit);
+							if (jumpTo != PANEL_NONE) {
+								currentPanel = &panels[jumpTo];
+								selectPanel(currentPanel);
+							}
 						}
 					} else {
 						selectPanel(currentPanel);

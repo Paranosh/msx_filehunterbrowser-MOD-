@@ -705,6 +705,36 @@ static bool lb_buildDskBat(char dsks[LB_MAX_DISKS][LB_DSK_NAMELEN],
 	return true;
 }
 
+// Centred "Exit fhMOD? Y / N" confirmation popup. Blocks until Y/ENTER
+// (-> true) or N/ESC (-> false). Caller redraws underneath.
+bool lb_confirmExit(void)
+{
+	const uint8_t x1 = 28;
+	const uint8_t y1 = 10;
+	const uint8_t x2 = 51;	/* 24 cols wide */
+	const uint8_t y2 = 14;
+	uint8_t y;
+	char    ch;
+
+	for (y = y1 + 1; y < y2; y++) {
+		_fillVRAM((uint16_t)((y - 1) * 80 + (x1 - 1)),
+		          (uint16_t)(x2 - x1 + 1), ' ');
+	}
+	drawFrame(x1, y1, x2, y2);
+	putstrxy(x1 + 5, y1 + 1, "Exit fhMOD?");
+	putstrxy(x1 + 3, y1 + 3, "Y = yes    N = no");
+
+	/* Drain any pending keys so a stale Y/N doesn't auto-trigger. */
+	while (kbhit()) getch();
+	for (;;) {
+		ASM_EI; ASM_HALT;
+		if (!kbhit()) continue;
+		ch = dos2_toupper(getch());
+		if (ch == 'Y' || ch == KEY_RETURN) return true;
+		if (ch == 'N' || ch == KEY_ESC)    return false;
+	}
+}
+
 // Centred popup that tells the user how many disks were detected and
 // blocks until any key is pressed. Drawn with drawFrame() so it shares
 // the look of the loading box.
@@ -941,7 +971,19 @@ uint8_t showLocalBrowser(void)
 				count   = lb_scanDir(entries);
 							lb_printList(entries, count, topLine, curLine);
 			} else {
-				done = true;		// Already at root — close browser
+				// Already at drive root: ask the user whether to quit
+				// fhMOD entirely instead of just dropping back to an
+				// empty Local panel (which would need yet another ESC
+				// to actually leave). LB_EXIT_QUIT propagates to
+				// menu_loop and ends the program.
+				if (lb_confirmExit()) {
+					exitCode = LB_EXIT_QUIT;
+					done     = true;
+				} else {
+					// Redraw the overlay underneath the popup.
+					lb_drawWindow();
+					lb_printList(entries, count, topLine, curLine);
+				}
 			}
 
 		} else if (key == KEY_TAB) {
