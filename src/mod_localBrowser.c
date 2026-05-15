@@ -850,34 +850,23 @@ uint8_t showLocalBrowser(void)
 	uint8_t exitCode;
 	char key;
 	uint8_t action;
-	char savedPath[64];
 	char curPath[64];
-	uint8_t savedDrive;
 
 	// Flush any pending keypresses so no stray key triggers an action immediately
 	while (kbhit()) getch();
 
-	// Save current drive AND directory so we can restore both when the
-	// browser closes. With the drive-switching nav entries the user may
-	// be on a different drive at exit time; restoring just the path
-	// alone would land on the wrong drive's root.
-	savedDrive = getCurrentDrive();
-	dos2_getCurrentDirectory(0, savedPath);
-
-	// Navigate to root of current drive — provides an explicit, valid default
-	// directory (fixes "no drive/directory reference" crash in Nextor).
-	dos2_setCurrentDirectory("\\");
+	// We do NOT chdir to "\" any more, and we no longer save+restore
+	// the drive/path on exit. The CWD now follows whatever the user
+	// navigates to in the local browser, so:
+	//   - Re-entering the local browser shows the last visited dir.
+	//   - Downloads from network tabs land in that same dir.
+	// (The old behaviour reset CWD on entry and restored it on exit,
+	// which made downloads go to wherever fhMOD was first launched
+	// from regardless of where the user had navigated.)
 
 	// Allocate entry list on heap (above existing list data)
 	entries = (LBEntry_t *)malloc(LB_MAX_ENTRIES * sizeof(LBEntry_t));
 	if (!entries) {
-		// Restore original drive + directory and return.
-		// SELDRV first because CHDIR alone won't switch the active
-		// drive (see lb_selectDrive comment).
-		lb_selectDrive(savedDrive);
-		buff[0] = '\\';
-		strcpy(buff + 1, savedPath);
-		dos2_setCurrentDirectory(buff);
 		return LB_EXIT_CLOSE;
 	}
 
@@ -986,14 +975,8 @@ uint8_t showLocalBrowser(void)
 			// the network browser. launchOcmInfo() injects the command
 			// into the BIOS keyboard buffer and exits so COMMAND.COM
 			// picks it up. Only returns here on error.
-			//
-			// Restore original drive + dir so OCMINFO.COM runs with
-			// the same CWD the user had before opening the browser.
-			// SELDRV before CHDIR; CHDIR alone doesn't switch drive.
-			lb_selectDrive(savedDrive);
-			buff[0] = '\\';
-			strcpy(buff + 1, savedPath);
-			dos2_setCurrentDirectory(buff);
+			// CWD is left wherever the user navigated to so OCMINFO
+			// runs in that dir (PATH resolves the binary regardless).
 			free(LB_MAX_ENTRIES * sizeof(LBEntry_t));
 			restoreScreen();
 			launchOcmInfo();
@@ -1001,12 +984,9 @@ uint8_t showLocalBrowser(void)
 		}
 	}
 
-	// Restore original drive + working directory. SELDRV before CHDIR;
-	// CHDIR alone doesn't switch the active drive.
-	lb_selectDrive(savedDrive);
-	buff[0] = '\\';
-	strcpy(buff + 1, savedPath);
-	dos2_setCurrentDirectory(buff);
+	// CWD is intentionally left wherever the user navigated. This means
+	// returning to the local browser shows the same dir, and downloads
+	// from network tabs land in that dir too.
 
 	// Free entry list
 	free(LB_MAX_ENTRIES * sizeof(LBEntry_t));
