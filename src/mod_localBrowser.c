@@ -432,14 +432,19 @@ static uint8_t lb_detectROMMapper(const char *filename)
 	return 3;                          //  > 128 KB : ASCII8  /R3
 }
 
-// Path of the canonical LOADCAX binary. Must live alongside fhMOD.com.
-#define LOADCAX_SRC_PATH	"\\UTILS\\LOADCAX"
+// Path of the canonical LOADCAX binary. Drive-qualified on purpose:
+// with the local browser's per-session "remember last location" we
+// often run with a non-A: drive active, and "\\UTILS\\LOADCAX" alone
+// would resolve to the WRONG drive's \UTILS — breaking .CAS launching
+// from e.g. B:\GAMES.
+#define LOADCAX_SRC_PATH	"A:\\UTILS\\LOADCAX"
 #define LOADCAX_DEST_NAME	"LOADCAX"
 // Manifest of residual files dropped into game dirs (LOADCAX, FHCAS.BAS,
 // FHRUN.BAT). Read + wiped once at fhMOD startup. The manifest is small
 // on purpose — it reuses 'buff' so there's no extra BSS that could
 // collide with the heap floor at 0x8000 (which would break hget).
-#define LB_MANIFEST_PATH	"\\UTILS\\FHCLEAN.LST"
+// Drive-qualified for the same reason as LOADCAX_SRC_PATH above.
+#define LB_MANIFEST_PATH	"A:\\UTILS\\FHCLEAN.LST"
 // Matches the BUFF_SIZE used to malloc 'buff' in fhMOD.c. Keep in sync.
 #define LB_BUFF_SIZE		200
 
