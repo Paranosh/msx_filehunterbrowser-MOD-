@@ -433,18 +433,12 @@ static uint8_t lb_detectROMMapper(const char *filename)
 }
 
 #define LOADCAX_DEST_NAME	"LOADCAX"
-// LOADCAX source and the residual-file manifest are both expected to
-// live next to fhMOD.com itself. We resolve their paths at runtime
-// with getProgramPath() (same trick mod_serverSelect uses for
-// REPOS.TXT) so they work regardless of which drive fhMOD was
-// installed on and regardless of the local browser's current dir.
-// LB_PATH_BUFLEN: typical fhMOD path is "X:\UTILS\LOADCAX" (~16 chars).
-// 48 gives plenty of headroom for deeper installs while keeping BSS
-// tight — the heap floor sits at 0x8000 and any BSS that pushes past
-// it corrupts hget's TCP buffers (manifests as "Network unreachable").
+// LOADCAX source and the residual-file manifest both live next to
+// fhMOD.com itself. We resolve their paths on-demand via
+// lb_buildProgramRelativePath() into stack-local buffers — caching
+// them as statics added too much BSS and pushed past the 0x8000 heap
+// floor, corrupting hget's TCP buffers and breaking the network tab.
 #define LB_PATH_BUFLEN		48
-static char lb_loadcaxSrcPath[LB_PATH_BUFLEN];
-static char lb_manifestPath  [LB_PATH_BUFLEN];
 
 // Matches the BUFF_SIZE used to malloc 'buff' in fhMOD.c. Keep in sync.
 #define LB_BUFF_SIZE		200
@@ -492,11 +486,13 @@ static bool lb_copyLoadcax(void)
 	FILEH    fhSrc;
 	FILEH    fhDst;
 	int16_t  n;
+	char     srcPath[LB_PATH_BUFLEN];
 
 	// Reuse an existing copy if one is already next to the .CAS.
 	if (dos2_fileexists(LOADCAX_DEST_NAME)) return true;
 
-	fhSrc = dos2_fopen(lb_loadcaxSrcPath, O_RDONLY);
+	lb_buildProgramRelativePath(srcPath, LOADCAX_DEST_NAME);
+	fhSrc = dos2_fopen(srcPath, O_RDONLY);
 	if (fhSrc >= ERR_FIRST) return false;
 
 	fhDst = dos2_fcreate(LOADCAX_DEST_NAME, O_WRONLY, ATTR_ARCHIVE);
@@ -534,6 +530,7 @@ static void lb_appendManifest(const char *filename)
 {
 	char        absPath[80];
 	char        curPath[64];
+	char        manifestPath[LB_PATH_BUFLEN];
 	uint8_t     drive;
 	uint16_t    used = 0;
 	uint16_t    n;
@@ -562,8 +559,10 @@ static void lb_appendManifest(const char *filename)
 		absPath[n] = '\0';
 	}
 
+	lb_buildProgramRelativePath(manifestPath, "FHCLEAN.LST");
+
 	/* Slurp whatever fits of the existing manifest into 'buff'. */
-	fh = dos2_fopen(lb_manifestPath, O_RDONLY);
+	fh = dos2_fopen(manifestPath, O_RDONLY);
 	if (fh < ERR_FIRST) {
 		used = (uint16_t)dos2_fread(buff, LB_BUFF_SIZE - 1, fh);
 		dos2_fclose(fh);
@@ -578,8 +577,8 @@ static void lb_appendManifest(const char *filename)
 	buff[used++] = '\r';
 	buff[used++] = '\n';
 
-	dos2_remove(lb_manifestPath);
-	fh = dos2_fcreate(lb_manifestPath, O_WRONLY, ATTR_ARCHIVE);
+	dos2_remove(manifestPath);
+	fh = dos2_fcreate(manifestPath, O_WRONLY, ATTR_ARCHIVE);
 	if (fh >= ERR_FIRST) return;
 	dos2_fwrite(buff, used, fh);
 	dos2_fclose(fh);
@@ -588,19 +587,16 @@ static void lb_appendManifest(const char *filename)
 void lb_cleanupResiduals(void)
 {
 	char        path[80];
+	char        manifestPath[LB_PATH_BUFLEN];
 	uint16_t    used;
 	uint16_t    i;
 	uint16_t    lineStart;
 	uint16_t    len;
 	FILEH       fh;
 
-	/* Resolve LOADCAX + manifest paths from fhMOD's own program path.
-	   Done here (called once at startup from main()) rather than in a
-	   separate init function. */
-	lb_buildProgramRelativePath(lb_loadcaxSrcPath, LOADCAX_DEST_NAME);
-	lb_buildProgramRelativePath(lb_manifestPath,   "FHCLEAN.LST");
+	lb_buildProgramRelativePath(manifestPath, "FHCLEAN.LST");
 
-	fh = dos2_fopen(lb_manifestPath, O_RDONLY);
+	fh = dos2_fopen(manifestPath, O_RDONLY);
 	if (fh >= ERR_FIRST) return;
 	used = (uint16_t)dos2_fread(buff, LB_BUFF_SIZE - 1, fh);
 	dos2_fclose(fh);
@@ -623,7 +619,7 @@ void lb_cleanupResiduals(void)
 		}
 	}
 
-	dos2_remove(lb_manifestPath);
+	dos2_remove(manifestPath);
 }
 
 // Paint a centred "Loading game..." box on top of the local browser so
@@ -1133,9 +1129,13 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 		   later BASIC BLOAD will fail and the user will be stuck in
 		   BASIC. Fail FAST and tell them why, instead of letting it
 		   crash later. */
-		if (!dos2_fileexists(lb_loadcaxSrcPath)) {
-			lb_warnMissingTool("LOADCAX", lb_loadcaxSrcPath, true);
-			return 0;
+		{
+			char loadcaxPath[LB_PATH_BUFLEN];
+			lb_buildProgramRelativePath(loadcaxPath, LOADCAX_DEST_NAME);
+			if (!dos2_fileexists(loadcaxPath)) {
+				lb_warnMissingTool("LOADCAX", loadcaxPath, true);
+				return 0;
+			}
 		}
 		// Show feedback BEFORE we start IO — the LOADCAX copy + stub
 		// write + DOS dance can take a noticeable second on slow media.
