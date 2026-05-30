@@ -79,9 +79,31 @@ jobs:
       - name: Compilar FHMOD.COM
         run: make all
 
+      - name: Resumen del mapa de memoria (diagnóstico)
+        run: |
+          echo "===== fhMOD.com size ====="
+          ls -l obj/fhMOD.com || true
+          echo ""
+          echo "===== Area table (.map) ====="
+          # SDCC writes the linker map next to the .ihx. Print the area
+          # summary (start addr + size of _CODE/_DATA/_HEAP/etc) and any
+          # heap/unapi symbols so we can see exactly where the heap floor
+          # lands and how big the image is.
+          if [ -f obj/fhMOD.map ]; then
+            grep -iE "^_?(CODE|DATA|INITIAL|HEAP|GS|HOME|BSS|DISP|OVERLAY)" obj/fhMOD.map || true
+            echo "--- symbols ---"
+            grep -iE "_HEAP_start|_heap_top|_unapiBuffer|_main" obj/fhMOD.map || true
+          else
+            echo "no .map found; listing obj/"
+            ls -l obj/
+          fi
+
       - name: Subir FHMOD.COM como artefacto
         uses: actions/upload-artifact@v4
         with:
           name: fhmod-com
-          path: obj/fhMOD.com
+          path: |
+            obj/fhMOD.com
+            obj/fhMOD.map
+            obj/fhMOD.noi
           retention-days: 30
