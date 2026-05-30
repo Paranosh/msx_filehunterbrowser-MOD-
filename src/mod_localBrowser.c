@@ -370,21 +370,32 @@ static const char lb_sofaRunMsg[] =
 // Detect which SROM /Rx mapper parameter a ROM file needs.
 //
 // Detection rules (checked in order):
-//   1. "AB" header at offset 0     -> 0  (SROM auto-detects)
-//   2. "ASCII16X" at offset 0x10   -> 1  (ASCII16-X, /R1)
-//      ASCII16-X (grauw.nl/projects/ascii-x) uses 16KB banking with the
-//      same register addresses as ASCII16 (6000H/7000H). For ROMs <=4MB
-//      the bank number fits in 8 bits, so it is fully /R1-compatible.
-//   3. No tag, size <= 64KB        -> 9  (Linear,  /R9)
-//   4. No tag, size <= 128KB       -> 1  (ASCII16, /R1)
-//   5. No tag, size >  128KB       -> 3  (ASCII8,  /R3)
+//   1. "AB" header at offset 0 and size <= 64 KB
+//        -> read init address from bytes 2..3 (little-endian) and pick:
+//             init in 0x0000-0x3FFF -> 10 (Linear0,  /R10)
+//             init in 0x4000-0xBFFF ->  9 (Linear,   /R9)
+//             init in 0xC000-0xFFFF -> 11 (LinearC,  /R11)
+//      SROM's "auto" mode (/R0) misclassifies several linear ROMs
+//      (the docs at louthrax.com/mgr/sofarom_usage.html explicitly
+//      list Linear0 and LinearC as "not natively supported" on some
+//      flashcarts) so we pass the explicit flag.
+//   2. "AB" header at offset 0 and size > 64 KB    -> 0 (auto-detect)
+//      Too big for a flat ROM, must be a MegaROM with the signature
+//      in bank 0; let SROM's auto-detection pick the right mapper.
+//   3. "ASCII16X" at offset 0x10                    -> 1  (ASCII16-X /R1)
+//      Same register addresses (6000/7000H) as ASCII16; works on /R1
+//      for ROMs up to 4 MB (bank index still fits in 8 bits).
+//   4. No tag, size <= 64KB                         -> 9  (Linear  /R9)
+//   5. No tag, size <= 128KB                        -> 1  (ASCII16 /R1)
+//   6. No tag, size >  128KB                        -> 3  (ASCII8  /R3)
 //
 // Returns 0 on any file-access error (SROM will try its own auto-detect).
 static uint8_t lb_detectROMMapper(const char *filename)
 {
-	FILEH   fh;
-	char    hdr[24];	// enough to cover AB header (0) and ASCII16X tag (0x10..0x17)
-	int32_t size;
+	FILEH    fh;
+	char     hdr[24];	// covers AB header (0..7) + ASCII16X tag (0x10..0x17)
+	int32_t  size;
+	uint16_t initAddr;
 
 	size = dos2_filesize((char*)filename);
 	if (size < 0) return 0;
@@ -394,14 +405,20 @@ static uint8_t lb_detectROMMapper(const char *filename)
 	dos2_fread(hdr, sizeof(hdr), fh);
 	dos2_fclose(fh);
 
-	// 1. Standard MSX ROM: let SROM handle auto-detection
-	if (hdr[0] == 'A' && hdr[1] == 'B') return 0;
+	// 1/2. Standard MSX ROM with the "AB" signature.
+	if (hdr[0] == 'A' && hdr[1] == 'B') {
+		if (size > 0x10000L) return 0;	// MegaROM, auto-detect
+		initAddr = (uint16_t)((uint8_t)hdr[2] | ((uint8_t)hdr[3] << 8));
+		if (initAddr >= 0xC000)      return 11;	// LinearC  /R11
+		if (initAddr <  0x4000)      return 10;	// Linear0  /R10
+		return 9;                                  // Linear   /R9
+	}
 
-	// 2. ASCII16-X: official identifier at offset 0x10
+	// 3. ASCII16-X: official identifier at offset 0x10
 	if (size >= (int32_t)sizeof(hdr) &&
 	    memcmp(&hdr[0x10], "ASCII16X", 8) == 0) return 1;
 
-	// 3-5. Size-based heuristics
+	// 4-6. Size-based heuristics for ROMs without a recognised header
 	if (size <= 0x10000L) return 9;   // <= 64 KB  : Linear  /R9
 	if (size <= 0x20000L) return 1;   // <= 128 KB : ASCII16 /R1
 	return 3;                          //  > 128 KB : ASCII8  /R3
