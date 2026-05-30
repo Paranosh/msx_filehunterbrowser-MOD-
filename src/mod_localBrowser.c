@@ -730,72 +730,134 @@ static bool lb_buildDskBat(char dsks[LB_MAX_DISKS][LB_DSK_NAMELEN],
 	return true;
 }
 
-// Centred "Exit fhMOD? Y / N" confirmation popup. Blocks until Y/ENTER
-// (-> true) or N/ESC (-> false). Caller redraws underneath.
-bool lb_confirmExit(void)
+// Centred cursor-driven menu used by lb_confirmExit, lb_chooseRomLauncher
+// and anything else that needs a "pick one of N labels" popup. Mirrors
+// the look + controls of the F4 Server Browser:
+//
+//   UP/DOWN   move selection (joystick too — joystickPoll() polled here)
+//   ENTER     return the selected index
+//   ESC       return -1 (cancel)
+//
+// Width is auto-fit to the title or longest option, capped to a 26-col
+// minimum so short prompts still look like dialogs.
+static int8_t lb_pickFromMenu(const char *title,
+                               const char *const opts[],
+                               uint8_t count)
 {
-	const uint8_t x1 = 28;
-	const uint8_t y1 = 10;
-	const uint8_t x2 = 51;	/* 24 cols wide */
-	const uint8_t y2 = 14;
+	uint8_t i;
+	uint8_t labelLen;
+	uint8_t maxW = (uint8_t)strlen(title);
+	uint8_t winW;
+	uint8_t innerW;
+	uint8_t x1, x2, y1, y2;
+	uint8_t totalRows;
+	uint8_t firstItemY;
+	int8_t  cur = 0;
+	char    key;
 	uint8_t y;
-	char    ch;
 
+	for (i = 0; i < count; i++) {
+		labelLen = (uint8_t)strlen(opts[i]);
+		if (labelLen > maxW) maxW = labelLen;
+	}
+	winW = maxW + 8;	/* 4-col padding each side */
+	if (winW < 26) winW = 26;
+
+	x1 = (uint8_t)((80 - winW) / 2) + 1;
+	x2 = x1 + winW - 1;
+	/* top border + title + blank + count items + bottom border */
+	totalRows = count + 4;
+	y1 = (uint8_t)(12 - totalRows / 2);
+	y2 = y1 + totalRows - 1;
+	firstItemY = y1 + 3;
+	innerW = winW - 4;
+
+	/* Wipe interior and draw the frame using the same chars as everything
+	   else in the app. fillBlink(false) clears any leftover blink so the
+	   only blinking cells will be the textblink we set per row. */
 	for (y = y1 + 1; y < y2; y++) {
 		_fillVRAM((uint16_t)((y - 1) * 80 + (x1 - 1)),
-		          (uint16_t)(x2 - x1 + 1), ' ');
+		          (uint16_t)winW, ' ');
 	}
+	fillBlink(x1, y1, totalRows, winW, false);
 	drawFrame(x1, y1, x2, y2);
-	putstrxy(x1 + 5, y1 + 1, "Exit fhMOD?");
-	putstrxy(x1 + 3, y1 + 3, "Y = yes    N = no");
 
-	/* Drain any pending keys so a stale Y/N doesn't auto-trigger. */
+	/* Title, centred on row y1+1. */
+	{
+		uint8_t titleLen = (uint8_t)strlen(title);
+		uint8_t tx = x1 + (uint8_t)((winW - titleLen) / 2);
+		putstrxy(tx, y1 + 1, (char*)title);
+	}
+
+	/* Items: each centred inside innerW, with blink on the selected one. */
+	for (i = 0; i < count; i++) {
+		labelLen = (uint8_t)strlen(opts[i]);
+		if (labelLen > innerW) labelLen = innerW;
+		memset(buff, ' ', innerW);
+		buff[innerW] = '\0';
+		memcpy(buff + (innerW - labelLen) / 2, opts[i], labelLen);
+		putlinexy(x1 + 2, firstItemY + i, innerW, buff);
+		textblink(x1 + 2, firstItemY + i, innerW, (i == cur));
+	}
+
 	while (kbhit()) getch();
 	for (;;) {
+		uint8_t joyKey;
 		ASM_EI; ASM_HALT;
-		if (!kbhit()) continue;
-		ch = dos2_toupper(getch());
-		if (ch == 'Y' || ch == KEY_RETURN) return true;
-		if (ch == 'N' || ch == KEY_ESC)    return false;
+		joyKey = joystickPoll();
+		if (!kbhit() && !joyKey) continue;
+		key = joyKey ? (char)joyKey : dos2_toupper(getch());
+
+		if (key == KEY_UP) {
+			if (cur > 0) {
+				textblink(x1 + 2, firstItemY + cur, innerW, false);
+				cur--;
+				textblink(x1 + 2, firstItemY + cur, innerW, true);
+			}
+		} else if (key == KEY_DOWN) {
+			if ((uint8_t)(cur + 1) < count) {
+				textblink(x1 + 2, firstItemY + cur, innerW, false);
+				cur++;
+				textblink(x1 + 2, firstItemY + cur, innerW, true);
+			}
+		} else if (key == KEY_RETURN || key == KEY_SELECT) {
+			return cur;
+		} else if (key == KEY_ESC) {
+			return -1;
+		}
 	}
 }
 
+// "Exit fhMOD?" confirmation popup. Yes/No cursor menu. Returns true
+// only if the user picked Yes; ESC or No both return false. Caller
+// repaints whatever was underneath.
+bool lb_confirmExit(void)
+{
+	static const char *const opts[] = { "Yes", "No" };
+	int8_t r = lb_pickFromMenu("Exit fhMOD?", opts, 2);
+	return (r == 0);
+}
+
 // Centred popup that asks the user which launcher to use for a .ROM.
+// Cursor-driven menu (same controls as the F4 Server Browser).
 // Returns:
 //   'S' = SofaROM (SROM) — uses fhMOD's Linear/Linear0/LinearC mapper
 //                          detection so the right /Rx flag is passed.
 //   'M' = mglOcm        — closed-source ToughkidCST OCM-native loader.
 //                          Has its own mapper auto-detect; no flags
 //                          needed. Must be on the DOS PATH.
-//    0  = ESC / cancel  — caller restores list and returns to browser.
+//    0  = ESC or Cancel — caller restores list and returns to browser.
 static char lb_chooseRomLauncher(void)
 {
-	const uint8_t x1 = 25;
-	const uint8_t y1 = 9;
-	const uint8_t x2 = 54;	/* 30 cols wide */
-	const uint8_t y2 = 16;
-	uint8_t y;
-	char    ch;
-
-	for (y = y1 + 1; y < y2; y++) {
-		_fillVRAM((uint16_t)((y - 1) * 80 + (x1 - 1)),
-		          (uint16_t)(x2 - x1 + 1), ' ');
-	}
-	drawFrame(x1, y1, x2, y2);
-	putstrxy(x1 + 6, y1 + 1, "Launch ROM with:");
-	putstrxy(x1 + 4, y1 + 3, "S = SROM (SofaROM)");
-	putstrxy(x1 + 4, y1 + 4, "M = mglOcm");
-	putstrxy(x1 + 4, y1 + 5, "ESC = cancel");
-
-	/* Flush stale keys so a previous keystroke doesn't auto-pick. */
-	while (kbhit()) getch();
-	for (;;) {
-		ASM_EI; ASM_HALT;
-		if (!kbhit()) continue;
-		ch = dos2_toupper(getch());
-		if (ch == 'S' || ch == 'M') return ch;
-		if (ch == KEY_ESC)          return 0;
-	}
+	static const char *const opts[] = {
+		"SROM (SofaROM)",
+		"mglOcm",
+		"Cancel"
+	};
+	int8_t r = lb_pickFromMenu("Launch ROM with:", opts, 3);
+	if (r == 0) return 'S';
+	if (r == 1) return 'M';
+	return 0;	/* -1 (ESC) or 2 (Cancel) */
 }
 
 // Centred popup that tells the user how many disks were detected and
