@@ -127,11 +127,27 @@ void abortRoutine()
 	dos2_exit(1);
 }
 
+// End of the whole code image (start of the disposable heap area in the
+// crt0). Everything below this address is program code/data; the heap
+// must never grow into it.
+extern void HEAP_disposable;
+
 void initializeBuffers()
 {
 	// A way to avoid using low memory when using BIOS calls from DOS
 	if (heap_top < (void*)0x8000)
 		heap_top = (void*)0x8000;
+
+	// CRITICAL: the heap must start ABOVE all program code, including the
+	// _DISPOSABLE segment (one-shot startup code — e.g. hgetinit, the
+	// network init). Natalia's original 0x8000 floor was enough only
+	// while the entire image fit under 0x8000. This fork's extra code
+	// pushed _DISPOSABLE past 0x8000 (confirmed in the linker .map), so a
+	// heap floored at 0x8000 overwrote that code and the TCP/IP stack
+	// failed with a bogus "Network unreachable". Floor at the end of the
+	// code image instead. Costs ~2 KB of heap-reuse RAM; we have plenty.
+	if (heap_top < (void*)&HEAP_disposable)
+		heap_top = (void*)&HEAP_disposable;
 
 	// Assign buffers
 	buff = malloc(BUFF_SIZE);
