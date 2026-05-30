@@ -432,21 +432,52 @@ static uint8_t lb_detectROMMapper(const char *filename)
 	return 3;                          //  > 128 KB : ASCII8  /R3
 }
 
-// Path of the canonical LOADCAX binary. Drive-qualified on purpose:
-// with the local browser's per-session "remember last location" we
-// often run with a non-A: drive active, and "\\UTILS\\LOADCAX" alone
-// would resolve to the WRONG drive's \UTILS — breaking .CAS launching
-// from e.g. B:\GAMES.
-#define LOADCAX_SRC_PATH	"A:\\UTILS\\LOADCAX"
 #define LOADCAX_DEST_NAME	"LOADCAX"
-// Manifest of residual files dropped into game dirs (LOADCAX, FHCAS.BAS,
-// FHRUN.BAT). Read + wiped once at fhMOD startup. The manifest is small
-// on purpose — it reuses 'buff' so there's no extra BSS that could
-// collide with the heap floor at 0x8000 (which would break hget).
-// Drive-qualified for the same reason as LOADCAX_SRC_PATH above.
-#define LB_MANIFEST_PATH	"A:\\UTILS\\FHCLEAN.LST"
+// LOADCAX source and the residual-file manifest are both expected to
+// live next to fhMOD.com itself. We resolve their paths at runtime
+// with getProgramPath() (same trick mod_serverSelect uses for
+// REPOS.TXT) so they work regardless of which drive fhMOD was
+// installed on and regardless of the local browser's current dir.
+// LB_PATH_BUFLEN is sized for a Nextor MAX_PATH_SIZE + small filename.
+#define LB_PATH_BUFLEN		80
+static char lb_loadcaxSrcPath[LB_PATH_BUFLEN];
+static char lb_manifestPath  [LB_PATH_BUFLEN];
+
 // Matches the BUFF_SIZE used to malloc 'buff' in fhMOD.c. Keep in sync.
 #define LB_BUFF_SIZE		200
+
+// Build "<fhMOD's dir>\<filename>" into `out` (LB_PATH_BUFLEN bytes).
+// Falls back to just the bare filename if getProgramPath fails (which
+// it does on MSX-DOS 1), in which case operations on `out` go through
+// the current drive's working directory — same fallback REPOS.TXT
+// uses.
+static void lb_buildProgramRelativePath(char *out, const char *filename)
+{
+	char progPath[64];
+	char *slash;
+	uint8_t dirLen;
+	uint8_t fnLen = (uint8_t)strlen(filename);
+
+	if (!getProgramPath(progPath)) {
+		strncpy(out, filename, LB_PATH_BUFLEN - 1);
+		out[LB_PATH_BUFLEN - 1] = '\0';
+		return;
+	}
+	slash = strrchr(progPath, '\\');
+	if (!slash) {
+		strncpy(out, filename, LB_PATH_BUFLEN - 1);
+		out[LB_PATH_BUFLEN - 1] = '\0';
+		return;
+	}
+	dirLen = (uint8_t)((slash - progPath) + 1);	/* include trailing '\' */
+	if ((uint16_t)dirLen + fnLen + 1 > LB_PATH_BUFLEN) {
+		strncpy(out, filename, LB_PATH_BUFLEN - 1);
+		out[LB_PATH_BUFLEN - 1] = '\0';
+		return;
+	}
+	memcpy(out, progPath, dirLen);
+	strcpy(out + dirLen, filename);
+}
 
 // Copy A:\UTILS\LOADCAX into the current directory if it isn't already
 // there. LOADCAX (~1.6 KB) must sit next to the .CAS or it errors out
@@ -462,7 +493,7 @@ static bool lb_copyLoadcax(void)
 	// Reuse an existing copy if one is already next to the .CAS.
 	if (dos2_fileexists(LOADCAX_DEST_NAME)) return true;
 
-	fhSrc = dos2_fopen(LOADCAX_SRC_PATH, O_RDONLY);
+	fhSrc = dos2_fopen(lb_loadcaxSrcPath, O_RDONLY);
 	if (fhSrc >= ERR_FIRST) return false;
 
 	fhDst = dos2_fcreate(LOADCAX_DEST_NAME, O_WRONLY, ATTR_ARCHIVE);
@@ -529,7 +560,7 @@ static void lb_appendManifest(const char *filename)
 	}
 
 	/* Slurp whatever fits of the existing manifest into 'buff'. */
-	fh = dos2_fopen(LB_MANIFEST_PATH, O_RDONLY);
+	fh = dos2_fopen(lb_manifestPath, O_RDONLY);
 	if (fh < ERR_FIRST) {
 		used = (uint16_t)dos2_fread(buff, LB_BUFF_SIZE - 1, fh);
 		dos2_fclose(fh);
@@ -544,8 +575,8 @@ static void lb_appendManifest(const char *filename)
 	buff[used++] = '\r';
 	buff[used++] = '\n';
 
-	dos2_remove(LB_MANIFEST_PATH);
-	fh = dos2_fcreate(LB_MANIFEST_PATH, O_WRONLY, ATTR_ARCHIVE);
+	dos2_remove(lb_manifestPath);
+	fh = dos2_fcreate(lb_manifestPath, O_WRONLY, ATTR_ARCHIVE);
 	if (fh >= ERR_FIRST) return;
 	dos2_fwrite(buff, used, fh);
 	dos2_fclose(fh);
@@ -560,7 +591,13 @@ void lb_cleanupResiduals(void)
 	uint16_t    len;
 	FILEH       fh;
 
-	fh = dos2_fopen(LB_MANIFEST_PATH, O_RDONLY);
+	/* Resolve LOADCAX + manifest paths from fhMOD's own program path.
+	   Done here (called once at startup from main()) rather than in a
+	   separate init function. */
+	lb_buildProgramRelativePath(lb_loadcaxSrcPath, LOADCAX_DEST_NAME);
+	lb_buildProgramRelativePath(lb_manifestPath,   "FHCLEAN.LST");
+
+	fh = dos2_fopen(lb_manifestPath, O_RDONLY);
 	if (fh >= ERR_FIRST) return;
 	used = (uint16_t)dos2_fread(buff, LB_BUFF_SIZE - 1, fh);
 	dos2_fclose(fh);
@@ -583,7 +620,7 @@ void lb_cleanupResiduals(void)
 		}
 	}
 
-	dos2_remove(LB_MANIFEST_PATH);
+	dos2_remove(lb_manifestPath);
 }
 
 // Paint a centred "Loading game..." box on top of the local browser so
