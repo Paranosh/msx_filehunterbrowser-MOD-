@@ -438,8 +438,11 @@ static uint8_t lb_detectROMMapper(const char *filename)
 // with getProgramPath() (same trick mod_serverSelect uses for
 // REPOS.TXT) so they work regardless of which drive fhMOD was
 // installed on and regardless of the local browser's current dir.
-// LB_PATH_BUFLEN is sized for a Nextor MAX_PATH_SIZE + small filename.
-#define LB_PATH_BUFLEN		80
+// LB_PATH_BUFLEN: typical fhMOD path is "X:\UTILS\LOADCAX" (~16 chars).
+// 48 gives plenty of headroom for deeper installs while keeping BSS
+// tight — the heap floor sits at 0x8000 and any BSS that pushes past
+// it corrupts hget's TCP buffers (manifests as "Network unreachable").
+#define LB_PATH_BUFLEN		48
 static char lb_loadcaxSrcPath[LB_PATH_BUFLEN];
 static char lb_manifestPath  [LB_PATH_BUFLEN];
 
@@ -958,8 +961,11 @@ static void lb_warnMissingTool(const char *toolName,
                                 const char *expectedPath,
                                 bool        fatal)
 {
-	static char line1[40];
-	static char line2[80];
+	/* Stack-allocated on purpose — making these static added 120 B
+	   to BSS, which (combined with the path buffers above) pushed BSS
+	   past 0x8000 and corrupted hget's heap, breaking network. */
+	char line1[40];
+	char line2[48];
 	csprintf(line1, "%s not found", toolName);
 	csprintf(line2, "%s", expectedPath);
 	if (fatal) {
