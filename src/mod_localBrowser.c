@@ -510,7 +510,14 @@ static bool lb_copyLoadcax(void)
 
 	dos2_fclose(fhDst);
 	dos2_fclose(fhSrc);
-	lb_appendManifest(LOADCAX_DEST_NAME);
+	/* Manifest append intentionally skipped here: it caused .CAS launches
+	   to fail with "Illegal function call" once BASIC fired up. The
+	   exact mechanism is still unclear (shared 'buff' between manifest
+	   IO and the LOADCAX/FHCAS.BAS writes may corrupt something on
+	   Nextor), but the original pre-cleanup code worked reliably so we
+	   stick with that. Residual LOADCAX copies will accumulate in
+	   game dirs again but each one is ~1.6 KB — the user can clean
+	   them manually if they pile up. */
 	return true;
 }
 
@@ -689,7 +696,7 @@ static bool lb_buildCasStub(const char *casFilename)
 	len = (uint16_t)strlen(buff);
 	dos2_fwrite(buff, len, fh);
 	dos2_fclose(fh);
-	lb_appendManifest("FHCAS.BAS");
+	/* See note in lb_copyLoadcax — manifest writes skipped here too. */
 	return true;
 }
 
@@ -768,7 +775,7 @@ static bool lb_buildDskBat(char dsks[LB_MAX_DISKS][LB_DSK_NAMELEN],
 	}
 	dos2_fwrite("\r\n", 2, fh);
 	dos2_fclose(fh);
-	lb_appendManifest("FHRUN.BAT");
+	/* See note in lb_copyLoadcax — manifest writes skipped here too. */
 	return true;
 }
 
