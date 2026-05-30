@@ -428,9 +428,10 @@ static uint8_t lb_detectROMMapper(const char *filename)
 #define LOADCAX_SRC_PATH	"\\UTILS\\LOADCAX"
 #define LOADCAX_DEST_NAME	"LOADCAX"
 // Manifest of residual files dropped into game dirs (LOADCAX, FHCAS.BAS,
-// FHRUN.BAT). Read + wiped once at fhMOD startup.
+// FHRUN.BAT). Read + wiped once at fhMOD startup. The manifest is small
+// on purpose — it reuses 'buff' so there's no extra BSS that could
+// collide with the heap floor at 0x8000 (which would break hget).
 #define LB_MANIFEST_PATH	"\\UTILS\\FHCLEAN.LST"
-#define LB_MANIFEST_BUFLEN	1024
 // Matches the BUFF_SIZE used to malloc 'buff' in fhMOD.c. Keep in sync.
 #define LB_BUFF_SIZE		200
 
@@ -473,21 +474,26 @@ static bool lb_copyLoadcax(void)
 // the cleanup manifest. Used so the next fhMOD launch can wipe every
 // residual LOADCAX / FHCAS.BAS / FHRUN.BAT we ever drop on game dirs.
 //
-// The manifest is rewritten in full each time — appending via seek-to-
-// end would need raw BDOS 0x4A which we don't have wrapped here. Cost
-// is irrelevant: at most a handful of paths, < 1 KB total.
+// Previously this used a 1 KB static buffer per cleanup function. Two
+// of those (one here, one in lb_cleanupResiduals) pushed BSS over the
+// 0x8000 boundary that fhMOD uses as the heap floor, corrupting hget's
+// TCP buffers and breaking network operations. Now both functions
+// reuse the existing 200 B 'buff' global so BSS stays the same as
+// upstream fhMOD's. As a side effect the manifest is capped at what
+// fits in 'buff' (~2 entries per launch); the next run cleans those
+// and any further launches keep adding fresh ones, so multi-launch
+// sessions get tidied incrementally rather than all at once.
 static void lb_appendManifest(const char *filename)
 {
-	static char manifest[LB_MANIFEST_BUFLEN];
 	char        absPath[80];
 	char        curPath[64];
 	uint8_t     drive;
 	uint16_t    used = 0;
 	uint16_t    n;
+	uint16_t    pl;
 	FILEH       fh;
 
-	/* Build "<drive>:\<cwd>\<filename>". CWD is returned without a
-	   leading backslash and without a drive prefix. */
+	/* Build "<drive>:\<cwd>\<filename>". */
 	drive = getCurrentDrive();
 	dos2_getCurrentDirectory(0, curPath);
 	absPath[0] = (char)('A' + drive);
@@ -509,34 +515,31 @@ static void lb_appendManifest(const char *filename)
 		absPath[n] = '\0';
 	}
 
-	/* Slurp existing manifest (if any). */
+	/* Slurp whatever fits of the existing manifest into 'buff'. */
 	fh = dos2_fopen(LB_MANIFEST_PATH, O_RDONLY);
 	if (fh < ERR_FIRST) {
-		used = (uint16_t)dos2_fread(manifest, LB_MANIFEST_BUFLEN - 1, fh);
+		used = (uint16_t)dos2_fread(buff, LB_BUFF_SIZE - 1, fh);
 		dos2_fclose(fh);
-		if (used >= LB_MANIFEST_BUFLEN) used = LB_MANIFEST_BUFLEN - 1;
+		if (used >= LB_BUFF_SIZE) used = LB_BUFF_SIZE - 1;
 	}
 
-	/* Append "<absPath>\r\n" — bail if it would overflow. */
-	{
-		uint16_t pl = (uint16_t)strlen(absPath);
-		if (used + pl + 2 >= LB_MANIFEST_BUFLEN) return;
-		memcpy(manifest + used, absPath, pl); used += pl;
-		manifest[used++] = '\r';
-		manifest[used++] = '\n';
-	}
+	/* Append "<absPath>\r\n". Bail if it doesn't fit; the entry will be
+	   picked up by the cleanup of a later run instead. */
+	pl = (uint16_t)strlen(absPath);
+	if (used + pl + 2 >= LB_BUFF_SIZE) return;
+	memcpy(buff + used, absPath, pl); used += pl;
+	buff[used++] = '\r';
+	buff[used++] = '\n';
 
-	/* Rewrite from scratch (dos2_fcreate refuses to overwrite). */
 	dos2_remove(LB_MANIFEST_PATH);
 	fh = dos2_fcreate(LB_MANIFEST_PATH, O_WRONLY, ATTR_ARCHIVE);
 	if (fh >= ERR_FIRST) return;
-	dos2_fwrite(manifest, used, fh);
+	dos2_fwrite(buff, used, fh);
 	dos2_fclose(fh);
 }
 
 void lb_cleanupResiduals(void)
 {
-	static char manifest[LB_MANIFEST_BUFLEN];
 	char        path[80];
 	uint16_t    used;
 	uint16_t    i;
@@ -546,27 +549,24 @@ void lb_cleanupResiduals(void)
 
 	fh = dos2_fopen(LB_MANIFEST_PATH, O_RDONLY);
 	if (fh >= ERR_FIRST) return;
-	used = (uint16_t)dos2_fread(manifest, LB_MANIFEST_BUFLEN - 1, fh);
+	used = (uint16_t)dos2_fread(buff, LB_BUFF_SIZE - 1, fh);
 	dos2_fclose(fh);
-	if (used >= LB_MANIFEST_BUFLEN) used = LB_MANIFEST_BUFLEN - 1;
-	manifest[used] = '\0';
+	if (used >= LB_BUFF_SIZE) used = LB_BUFF_SIZE - 1;
+	buff[used] = '\0';
 
-	/* Walk lines and delete each. Empty lines and lines that don't fit
-	   in `path` are silently skipped. */
 	lineStart = 0;
 	for (i = 0; i <= used; i++) {
-		if (i == used || manifest[i] == '\r' || manifest[i] == '\n') {
+		if (i == used || buff[i] == '\r' || buff[i] == '\n') {
 			len = i - lineStart;
 			if (len > 0 && len < sizeof(path)) {
-				memcpy(path, manifest + lineStart, len);
+				memcpy(path, buff + lineStart, len);
 				path[len] = '\0';
 				dos2_remove(path);
 			}
-			/* Skip the rest of the CRLF / multiple newlines. */
-			while (i < used && (manifest[i] == '\r' || manifest[i] == '\n'))
+			while (i < used && (buff[i] == '\r' || buff[i] == '\n'))
 				i++;
 			lineStart = i;
-			if (i < used) i--;	/* offset the loop ++ */
+			if (i < used) i--;
 		}
 	}
 
