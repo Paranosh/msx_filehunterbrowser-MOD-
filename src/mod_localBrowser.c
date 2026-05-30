@@ -510,14 +510,7 @@ static bool lb_copyLoadcax(void)
 
 	dos2_fclose(fhDst);
 	dos2_fclose(fhSrc);
-	/* Manifest append intentionally skipped here: it caused .CAS launches
-	   to fail with "Illegal function call" once BASIC fired up. The
-	   exact mechanism is still unclear (shared 'buff' between manifest
-	   IO and the LOADCAX/FHCAS.BAS writes may corrupt something on
-	   Nextor), but the original pre-cleanup code worked reliably so we
-	   stick with that. Residual LOADCAX copies will accumulate in
-	   game dirs again but each one is ~1.6 KB — the user can clean
-	   them manually if they pile up. */
+	lb_appendManifest(LOADCAX_DEST_NAME);
 	return true;
 }
 
@@ -696,7 +689,7 @@ static bool lb_buildCasStub(const char *casFilename)
 	len = (uint16_t)strlen(buff);
 	dos2_fwrite(buff, len, fh);
 	dos2_fclose(fh);
-	/* See note in lb_copyLoadcax — manifest writes skipped here too. */
+	lb_appendManifest("FHCAS.BAS");
 	return true;
 }
 
@@ -775,7 +768,7 @@ static bool lb_buildDskBat(char dsks[LB_MAX_DISKS][LB_DSK_NAMELEN],
 	}
 	dos2_fwrite("\r\n", 2, fh);
 	dos2_fclose(fh);
-	/* See note in lb_copyLoadcax — manifest writes skipped here too. */
+	lb_appendManifest("FHRUN.BAT");
 	return true;
 }
 
@@ -887,6 +880,95 @@ bool lb_confirmExit(void)
 	return (r == 0);
 }
 
+// Centred error / info popup. Shows up to three message lines and a
+// "Press any key..." footer; blocks until the user acknowledges.
+// Used to surface "X.COM not found" conditions before they cause a
+// silent failure inside COMMAND.COM after fhMOD exits.
+static void lb_showError(const char *line1, const char *line2, const char *line3)
+{
+	uint8_t maxW;
+	uint8_t winW;
+	uint8_t x1, x2, y1, y2;
+	uint8_t totalRows;
+	uint8_t lines;
+	uint8_t row;
+	uint8_t y;
+	uint8_t len;
+	const char *footer = "Press any key...";
+
+	maxW = (uint8_t)strlen(line1);
+	if (line2) { len = (uint8_t)strlen(line2); if (len > maxW) maxW = len; }
+	if (line3) { len = (uint8_t)strlen(line3); if (len > maxW) maxW = len; }
+	len = (uint8_t)strlen(footer);
+	if (len > maxW) maxW = len;
+
+	winW = maxW + 8;	/* 4-col padding each side */
+	if (winW < 30) winW = 30;
+
+	lines = 1 + (line2 ? 1 : 0) + (line3 ? 1 : 0);
+	/* top + lines + blank + footer + bottom */
+	totalRows = lines + 4;
+
+	x1 = (uint8_t)((80 - winW) / 2) + 1;
+	x2 = x1 + winW - 1;
+	y1 = (uint8_t)(12 - totalRows / 2);
+	y2 = y1 + totalRows - 1;
+
+	for (y = y1 + 1; y < y2; y++) {
+		_fillVRAM((uint16_t)((y - 1) * 80 + (x1 - 1)),
+		          (uint16_t)winW, ' ');
+	}
+	fillBlink(x1, y1, totalRows, winW, false);
+	drawFrame(x1, y1, x2, y2);
+
+	row = y1 + 1;
+	len = (uint8_t)strlen(line1);
+	putstrxy(x1 + (uint8_t)((winW - len) / 2), row++, (char*)line1);
+	if (line2) {
+		len = (uint8_t)strlen(line2);
+		putstrxy(x1 + (uint8_t)((winW - len) / 2), row++, (char*)line2);
+	}
+	if (line3) {
+		len = (uint8_t)strlen(line3);
+		putstrxy(x1 + (uint8_t)((winW - len) / 2), row++, (char*)line3);
+	}
+	row++;	/* blank line */
+	len = (uint8_t)strlen(footer);
+	putstrxy(x1 + (uint8_t)((winW - len) / 2), row, (char*)footer);
+
+	while (kbhit()) getch();
+	while (!kbhit()) { ASM_EI; ASM_HALT; }
+	getch();
+}
+
+// Check whether an external tool (LOADCAX, SROM.COM, …) sits next to
+// fhMOD.com. Always returns the resolved path in `outPath` so callers
+// can include it in an error popup. Pass NULL for outPath if not
+// interested in the path.
+static bool lb_toolExists(const char *toolName, char *outPath)
+{
+	char  scratch[LB_PATH_BUFLEN];
+	char *target = outPath ? outPath : scratch;
+	lb_buildProgramRelativePath(target, toolName);
+	return dos2_fileexists(target);
+}
+
+// Pop up the standard "<tool> not found" message and wait for ack.
+static void lb_warnMissingTool(const char *toolName,
+                                const char *expectedPath,
+                                bool        fatal)
+{
+	static char line1[40];
+	static char line2[80];
+	csprintf(line1, "%s not found", toolName);
+	csprintf(line2, "%s", expectedPath);
+	if (fatal) {
+		lb_showError(line1, line2, "Cannot continue.");
+	} else {
+		lb_showError(line1, line2, "Make sure it is on PATH.");
+	}
+}
+
 // Centred popup that asks the user which launcher to use for a .ROM.
 // Cursor-driven menu (same controls as the F4 Server Browser).
 // Returns:
@@ -979,6 +1061,17 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 			// Cancelled — caller redraws via rescan path.
 			return 0;
 		}
+		/* Verify the chosen launcher binary is somewhere reachable.
+		   We check next to fhMOD.com first (most common install), and
+		   issue a warning popup (non-blocking) if absent — the file
+		   might still be on PATH elsewhere, so we proceed anyway. */
+		{
+			char path[LB_PATH_BUFLEN];
+			const char *toolName = (launcher == 'M') ? "mglOcm.com" : "SROM.COM";
+			if (!lb_toolExists(toolName, path)) {
+				lb_warnMissingTool(toolName, path, false);
+			}
+		}
 		lb_showLoadingBox();
 		if (launcher == 'M') {
 			// mglOcm has its own mapper auto-detection.
@@ -996,6 +1089,13 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 		// never reached (dos2_exit called inside)
 
 	} else if (strcmp(dot, ".DSK") == 0) {
+		/* Quick SRI presence check — non-blocking warning. */
+		{
+			char path[LB_PATH_BUFLEN];
+			if (!lb_toolExists("SRI.COM", path)) {
+				lb_warnMissingTool("SRI.COM", path, false);
+			}
+		}
 		// Try multi-disk detection first. If the basename ends in a
 		// digit and 2+ siblings exist (<base>1.DSK..<base>N.DSK) we
 		// hand them all to SRI via a FHRUN.BAT — the BIOS keyboard
@@ -1023,6 +1123,14 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 		// never reached
 
 	} else if (strcmp(dot, ".CAS") == 0) {
+		/* LOADCAX is mandatory for .CAS launching — without it the
+		   later BASIC BLOAD will fail and the user will be stuck in
+		   BASIC. Fail FAST and tell them why, instead of letting it
+		   crash later. */
+		if (!dos2_fileexists(lb_loadcaxSrcPath)) {
+			lb_warnMissingTool("LOADCAX", lb_loadcaxSrcPath, true);
+			return 0;
+		}
 		// Show feedback BEFORE we start IO — the LOADCAX copy + stub
 		// write + DOS dance can take a noticeable second on slow media.
 		lb_showLoadingBox();
