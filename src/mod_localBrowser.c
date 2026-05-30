@@ -752,6 +752,44 @@ bool lb_confirmExit(void)
 	}
 }
 
+// Centred popup that asks the user which launcher to use for a .ROM.
+// Returns:
+//   'S' = SofaROM (SROM) — uses fhMOD's Linear/Linear0/LinearC mapper
+//                          detection so the right /Rx flag is passed.
+//   'M' = mglOcm        — closed-source ToughkidCST OCM-native loader.
+//                          Has its own mapper auto-detect; no flags
+//                          needed. Must be on the DOS PATH.
+//    0  = ESC / cancel  — caller restores list and returns to browser.
+static char lb_chooseRomLauncher(void)
+{
+	const uint8_t x1 = 25;
+	const uint8_t y1 = 9;
+	const uint8_t x2 = 54;	/* 30 cols wide */
+	const uint8_t y2 = 16;
+	uint8_t y;
+	char    ch;
+
+	for (y = y1 + 1; y < y2; y++) {
+		_fillVRAM((uint16_t)((y - 1) * 80 + (x1 - 1)),
+		          (uint16_t)(x2 - x1 + 1), ' ');
+	}
+	drawFrame(x1, y1, x2, y2);
+	putstrxy(x1 + 6, y1 + 1, "Launch ROM with:");
+	putstrxy(x1 + 4, y1 + 3, "S = SROM (SofaROM)");
+	putstrxy(x1 + 4, y1 + 4, "M = mglOcm");
+	putstrxy(x1 + 4, y1 + 5, "ESC = cancel");
+
+	/* Flush stale keys so a previous keystroke doesn't auto-pick. */
+	while (kbhit()) getch();
+	for (;;) {
+		ASM_EI; ASM_HALT;
+		if (!kbhit()) continue;
+		ch = dos2_toupper(getch());
+		if (ch == 'S' || ch == 'M') return ch;
+		if (ch == KEY_ESC)          return 0;
+	}
+}
+
 // Centred popup that tells the user how many disks were detected and
 // blocks until any key is pressed. Drawn with drawFrame() so it shares
 // the look of the loading box.
@@ -813,13 +851,27 @@ static uint8_t lb_activateEntry(LBEntry_t *entry)
 	if (!dot) { putchar('\x07'); return 0; }
 
 	if (strcmp(dot, ".ROM") == 0) {
-		// Show feedback before the mapper-detection IO + DOS handoff.
+		// Ask the user which launcher to use. SROM + fhMOD's mapper
+		// detection is the default, but some ROMs (looking at you,
+		// odd Linear variants) work better with mglOcm's native
+		// OCM-aware auto-detection.
+		char launcher = lb_chooseRomLauncher();
+		if (launcher == 0) {
+			// Cancelled — caller redraws via rescan path.
+			return 0;
+		}
 		lb_showLoadingBox();
-		mapper = lb_detectROMMapper(entry->name);
-		if (mapper) {
-			csprintf(buff, "SROM /R%u %s", (uint16_t)mapper, entry->name);
+		if (launcher == 'M') {
+			// mglOcm has its own mapper auto-detection.
+			csprintf(buff, "mglOcm %s", entry->name);
 		} else {
-			csprintf(buff, "SROM %s", entry->name);
+			// SROM with explicit /Rx from header detection.
+			mapper = lb_detectROMMapper(entry->name);
+			if (mapper) {
+				csprintf(buff, "SROM /R%u %s", (uint16_t)mapper, entry->name);
+			} else {
+				csprintf(buff, "SROM %s", entry->name);
+			}
 		}
 		lb_execCommand(buff, lb_sofaRunMsg);
 		// never reached (dos2_exit called inside)
