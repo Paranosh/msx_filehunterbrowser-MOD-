@@ -365,13 +365,13 @@ static void lb_printList(LBEntry_t *entries, uint8_t count,
 }
 
 // ========================================================
-// Message shown on the DOS console while SofaRun is loading.
-// Printed after restoreScreen() so it stays visible during the load.
+// Message shown on the DOS console while the external launcher
+// (SROM / SRI) takes over. Printed after restoreScreen() so it stays
+// visible during the load. Kept neutral so it works regardless of
+// which launcher actually picks up.
 static const char lb_sofaRunMsg[] =
 	"\r\n"
 	"  Launching, please wait...\r\n"
-	"\r\n"
-	"  Powered by SofaRun\r\n"
 	"\r\n";
 
 // --------------------------------------------------------
