@@ -86,6 +86,14 @@ extern void showHelpWindow();
 // can wipe it.
 static void lb_appendManifest(const char *filename);
 
+// Last (drive, path) the user navigated to inside the local browser,
+// remembered between Local-browser sessions so jumping out to a
+// network tab and back lands them at the same place. 0xFF means
+// "never visited yet — use whatever CWD the process happens to have".
+// Size matches dos2_getCurrentDirectory's 64-byte spec.
+static uint8_t lb_savedDrive    = 0xFF;
+static char    lb_savedPath[64] = "";
+
 // BDOS 0x0E (SELDRV) — switch the active drive.
 //
 // MSX-DOS 2's CHDIR (used by dos2_setCurrentDirectory) only sets the
@@ -954,14 +962,21 @@ uint8_t showLocalBrowser(void)
 	// Flush any pending keypresses so no stray key triggers an action immediately
 	while (kbhit()) getch();
 
-	// We do NOT chdir to "\" any more, and we no longer save+restore
-	// the drive/path on exit. The CWD now follows whatever the user
-	// navigates to in the local browser, so:
-	//   - Re-entering the local browser shows the last visited dir.
-	//   - Downloads from network tabs land in that same dir.
-	// (The old behaviour reset CWD on entry and restored it on exit,
-	// which made downloads go to wherever fhMOD was first launched
-	// from regardless of where the user had navigated.)
+	// Restore the last (drive, path) we remembered from a previous
+	// Local-browser session. This works even if something else (UNAPI,
+	// hget, BDOS side-effects from drive enumeration, …) clobbered
+	// CWD while we were on a network tab. First entry of the process
+	// has lb_savedDrive == 0xFF and we just use whatever CWD is.
+	if (lb_savedDrive != 0xFF) {
+		lb_selectDrive(lb_savedDrive);
+		if (lb_savedPath[0]) {
+			buff[0] = '\\';
+			strcpy(buff + 1, lb_savedPath);
+			dos2_setCurrentDirectory(buff);
+		} else {
+			dos2_setCurrentDirectory("\\");
+		}
+	}
 
 	// Allocate entry list on heap (above existing list data)
 	entries = (LBEntry_t *)malloc(LB_MAX_ENTRIES * sizeof(LBEntry_t));
@@ -1095,9 +1110,13 @@ uint8_t showLocalBrowser(void)
 		}
 	}
 
-	// CWD is intentionally left wherever the user navigated. This means
-	// returning to the local browser shows the same dir, and downloads
-	// from network tabs land in that dir too.
+	// Remember the (drive, path) we're leaving on so the next time the
+	// user opens the local browser they land back in the same place,
+	// even if CWD got changed in the meantime. CWD is also left where
+	// the user navigated so downloads from network tabs ideally land
+	// here too — but the saved (drive, path) is the source of truth.
+	lb_savedDrive = getCurrentDrive();
+	dos2_getCurrentDirectory(0, lb_savedPath);
 
 	// Free entry list
 	free(LB_MAX_ENTRIES * sizeof(LBEntry_t));
