@@ -884,6 +884,13 @@ void menu_loop()
 					break;
 				case '4':
 					if (showServerBrowser()) {
+						// Sync directory-browse mode to whatever the new
+						// server supports. selectPanel() also does this,
+						// but we still want it when on the Local tab so
+						// the very next jump to ROM/DSK/CAS lands in
+						// dirMode without the user having to touch '/'.
+						dirMode = serverHasDirMode;
+						currentDirPath[0] = '\0';
 						if (!IS_LOCAL_PANEL(currentPanel)) {
 							selectPanel(currentPanel);
 						}

@@ -132,14 +132,17 @@ void selectServer(void)
         if (!url) continue;
         *url++ = '\0';
 
-        // Optional |DIRMODE suffix
+        // Optional |DIRMODE suffix (case-insensitive, surrounding spaces ok)
         flag = strchr(url, '|');
         dm   = false;
         if (flag) {
             *flag++ = '\0';
+            while (*flag == ' ' || *flag == '\t') flag++;        // leading ws
             p = flag;
-            while (*p && *p != '\r' && *p != '\n' && *p != ' ') p++;
+            while (*p && *p != '\r' && *p != '\n' && *p != ' ' && *p != '\t')
+                p++;
             *p = '\0';
+            dos2_strupr(flag);
             dm = (strcmp(flag, "DIRMODE") == 0);
         }
 
