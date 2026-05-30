@@ -891,7 +891,13 @@ void menu_loop()
 						// dirMode without the user having to touch '/'.
 						dirMode = serverHasDirMode;
 						currentDirPath[0] = '\0';
-						if (!IS_LOCAL_PANEL(currentPanel)) {
+						if (IS_LOCAL_PANEL(currentPanel) && serverHasDirMode) {
+							// User picked a dir-capable server while on
+							// Local — jump them to ROM in dirMode view
+							// so they see the directory tree at once.
+							currentPanel = &panels[PANEL_ROM];
+							selectPanel(currentPanel);
+						} else if (!IS_LOCAL_PANEL(currentPanel)) {
 							selectPanel(currentPanel);
 						}
 					}
@@ -1064,6 +1070,16 @@ int main(char **argv, int argc) __sdcccall(0)
 
 	// Load server URL from REPOS.TXT (if present)
 	selectServer();
+
+	// If the active server supports directory navigation, start the
+	// user on ROM (the first network panel) with dirMode armed, rather
+	// than the default Local tab. They can still hop back to Local
+	// with [L] at any time. Without this the user would always have
+	// to TAB or R first AND press '/' to see the dir tree, even
+	// though their REPOS.TXT explicitly declared DIRMODE support.
+	if (serverHasDirMode && !localModeOnly) {
+		currentPanel = &panels[PANEL_ROM];
+	}
 
 	// Initialize program
 	resetList();
